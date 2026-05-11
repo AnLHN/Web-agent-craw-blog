@@ -138,6 +138,18 @@ class TavilyKeyStore:
                 self._save()
                 return
 
+    def mark_unhealthy(self, key_id: str) -> None:
+        now = datetime.now(timezone.utc)
+        with self._lock:
+            for record in self._records:
+                if record.id != key_id:
+                    continue
+                record.failure_count += 1
+                record.status = "unhealthy"
+                record.updated_at = now.isoformat()
+                self._save()
+                return
+
     def _update_stats(self, key_id: str, ok: bool) -> None:
         now = datetime.now(timezone.utc)
         with self._lock:

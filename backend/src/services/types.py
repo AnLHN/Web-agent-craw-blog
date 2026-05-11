@@ -17,3 +17,9 @@ class ProviderSearchResult:
     provider: str
     sources: list[SourceItem] = field(default_factory=list)
     attempts: list[ProviderAttemptData] = field(default_factory=list)
+
+
+@dataclass
+class SummaryResult:
+    summary: str
+    attempt: ProviderAttemptData

@@ -7,6 +7,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from src.config.settings import Settings, get_settings
 from src.routes.api import api_router
 from src.services.key_store import TavilyKeyStore
+from src.services.llm_summary_service import LlmSummaryService
 from src.services.query_cache import QueryCache
 from src.services.search_orchestrator import SearchOrchestrator
 from src.services.searxng_service import SearxngSearchService
@@ -19,10 +20,12 @@ def build_services(settings: Settings) -> dict:
     query_cache = QueryCache(ttl_seconds=settings.result_cache_ttl_seconds)
     tavily_service = TavilySearchService(settings=settings, key_store=key_store)
     searxng_service = SearxngSearchService(settings=settings)
+    llm_summary_service = LlmSummaryService(settings=settings)
     orchestrator = SearchOrchestrator(
         settings=settings,
         tavily_service=tavily_service,
         searxng_service=searxng_service,
+        llm_summary_service=llm_summary_service,
         query_cache=query_cache,
     )
 
@@ -31,6 +34,7 @@ def build_services(settings: Settings) -> dict:
         "query_cache": query_cache,
         "tavily_service": tavily_service,
         "searxng_service": searxng_service,
+        "llm_summary_service": llm_summary_service,
         "orchestrator": orchestrator,
     }
 

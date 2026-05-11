@@ -75,6 +75,19 @@ class TavilySearchService:
                     )
                     continue
 
+                if response.status_code in {401, 403}:
+                    self.key_store.mark_unhealthy(key_record.id)
+                    attempts.append(
+                        ProviderAttemptData(
+                            provider="tavily",
+                            status="failed",
+                            reason=f"http_{response.status_code}",
+                            latency_ms=latency_ms,
+                            result_count=0,
+                        )
+                    )
+                    continue
+
                 if response.status_code >= 400:
                     self.key_store.mark_failure(key_record.id)
                     attempts.append(

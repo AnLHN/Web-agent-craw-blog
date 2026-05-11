@@ -4,6 +4,17 @@ Du an gom:
 - backend: FastAPI pipeline search
 - frontend: Next.js UI search + Tavily key manager
 
+## 0) Setup nhanh (tu dong)
+
+```bash
+cp .env.example .env
+./setup.sh
+```
+
+- `setup.sh` se setup Python/Node/venv/dependencies.
+- Port backend/frontend duoc doc tu file `.env` o root.
+- Mac dinh script se tu bat backend + frontend (2 terminal neu co GUI).
+
 ## 1) Chay backend
 
 ```bash

@@ -62,7 +62,7 @@
 - Trong hien tai (chua key), he thong van test duoc luong SearXNG fallback.
 
 ### Phase 5 - Testing
-- Backend tests: 8/8 pass.
+- Backend tests: 11/11 pass.
 - Frontend lint: pass.
 - Frontend production build: pass.
 
@@ -73,6 +73,29 @@
 - Da them fallback nhieu SearXNG instance khi instance chinh tra rong/that bai.
 - Da them test cache hit de dam bao lan query thu 2 khong goi provider lai.
 - Da chuan hoa no-results response: tra success=true, data co attempts chi tiet, khong vo schema loi.
+- Da bo sung test tang cuong cho pipeline:
+  - Tavily du chat luong thi khong fallback sang SearXNG.
+  - Tavily duoi nguong chat luong thi bat buoc fallback sang SearXNG.
+  - Tavily key invalid (401) khong retry lap vo hanh vi cham, fallback nhanh hon.
+
+## Ket qua live-check bang request that
+- Da test request that qua localhost API (khong mock provider).
+- Scenario khong Tavily key:
+  - Pipeline skip Tavily dung nhu thiet ke.
+  - SearXNG fallback da duoc goi lan luot nhieu instance.
+  - Ket qua thuc te tren may hien tai: cac instance SearXNG tra 403/429/network error nen khong lay duoc source.
+- Scenario co Tavily key tam (invalid key de test thu tu pipeline):
+  - Tavily duoc uu tien goi truoc.
+  - Tavily tra 401 va key bi danh dau unhealthy, khong bi retry qua nhieu nhu truoc.
+  - Sau do fallback sang SearXNG.
+
+## Danh gia chat luong hien tai
+- Logic pipeline va thu tu provider: dung.
+- Response schema va attempts telemetry: dung.
+- Do dung/noi dung cuoi khi chay live hien tai: chua dat do phu du lieu do provider fallback bi chan tren egress hien tai.
+- Dieu kien de dat chat luong cao trong van hanh that:
+  - Can Tavily key hop le.
+  - Nen co SearXNG self-host/proxy rieng on dinh thay vi phu thuoc instance cong cong.
 
 ## Cac kho khan gap phai va cach giai quyet
 1. ENOSPC khi cai package npm.

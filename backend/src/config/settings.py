@@ -6,7 +6,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        env_prefix="APP_",
+        extra="ignore",
+    )
 
     app_name: str = "Web Search API"
     environment: str = "development"
@@ -28,6 +33,12 @@ class Settings(BaseSettings):
 
     tavily_search_depth: str = "advanced"
     tavily_max_cooldown_seconds: int = 600
+
+    llm_enabled: bool = True
+    llm_base_url: str = "http://localhost:8007/v1"
+    llm_model: str = "google/gemma-4-E4B-it"
+    llm_temperature: float = 0.2
+    llm_max_tokens: int = 280
 
     tavily_key_store_path: str = "config/tavily_keys.json"
 

@@ -1,5 +1,6 @@
 from src.config.settings import Settings
 from src.models.schemas import ProviderAttempt, SearchResultData
+from src.services.llm_summary_service import LlmSummaryService
 from src.services.query_cache import QueryCache
 from src.services.searxng_service import SearxngSearchService
 from src.services.tavily_service import TavilySearchService
@@ -12,12 +13,26 @@ class SearchOrchestrator:
         settings: Settings,
         tavily_service: TavilySearchService,
         searxng_service: SearxngSearchService,
+        llm_summary_service: LlmSummaryService,
         query_cache: QueryCache,
     ):
         self.settings = settings
         self.tavily_service = tavily_service
         self.searxng_service = searxng_service
+        self.llm_summary_service = llm_summary_service
         self.query_cache = query_cache
+
+    async def _resolve_summary(
+        self,
+        query: str,
+        sources,
+        attempts: list[ProviderAttempt],
+    ) -> str:
+        llm_result = await self.llm_summary_service.summarize(query=query, sources=sources)
+        attempts.append(ProviderAttempt(**llm_result.attempt.__dict__))
+        if llm_result.summary:
+            return llm_result.summary
+        return build_summary(query=query, sources=sources)
 
     async def search(self, query: str, top_k: int) -> SearchResultData:
         cached = self.query_cache.get(query=query, top_k=top_k)
@@ -46,7 +61,11 @@ class SearchOrchestrator:
             min_results=self.settings.quality_min_results,
             min_domains=self.settings.quality_min_unique_domains,
         ):
-            summary = build_summary(query=query, sources=tavily_result.sources)
+            summary = await self._resolve_summary(
+                query=query,
+                sources=tavily_result.sources,
+                attempts=attempts,
+            )
             data = SearchResultData(
                 query=query,
                 provider_used="tavily",
@@ -64,7 +83,11 @@ class SearchOrchestrator:
         )
 
         if not searxng_result.sources and tavily_result.sources:
-            summary = build_summary(query=query, sources=tavily_result.sources)
+            summary = await self._resolve_summary(
+                query=query,
+                sources=tavily_result.sources,
+                attempts=attempts,
+            )
             data = SearchResultData(
                 query=query,
                 provider_used="tavily_low_quality",
@@ -88,7 +111,11 @@ class SearchOrchestrator:
             self.query_cache.set(query=query, top_k=top_k, payload=data)
             return data
 
-        summary = build_summary(query=query, sources=searxng_result.sources)
+        summary = await self._resolve_summary(
+            query=query,
+            sources=searxng_result.sources,
+            attempts=attempts,
+        )
         data = SearchResultData(
             query=query,
             provider_used="searxng_fallback",

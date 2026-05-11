@@ -2,7 +2,7 @@ import { ApiResponse, SearchData, TavilyKeysData } from "@/types/api";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE?.replace(/\/$/, "") ||
-  "http://localhost:8000/api/v1";
+  "/api/v1";
 
 async function parseJson<T>(response: Response): Promise<T> {
   const payload = (await response.json()) as T;
