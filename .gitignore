@@ -1,0 +1,18 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Backend
+backend/.env
+backend/config/tavily_keys.json
+
+# Node / Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/.env.local
+
+# Logs and local artifacts
+*.log
+.DS_Store
