@@ -85,9 +85,60 @@ class TavilyKeyStore:
                 self._save()
             return removed
 
-    def has_keys(self) -> bool:
+    def update_key(
+        self,
+        key_id: str,
+        label: str | None = None,
+        status: str | None = None,
+    ) -> TavilyKeyRecord | None:
+        allowed_statuses = {"active", "disabled", "cooling_down", "exhausted", "unhealthy"}
+        now = datetime.now(timezone.utc)
         with self._lock:
-            return len(self._records) > 0
+            for record in self._records:
+                if record.id != key_id:
+                    continue
+                if label is not None:
+                    record.label = label.strip() or record.label
+                if status is not None:
+                    cleaned_status = status.strip()
+                    if cleaned_status not in allowed_statuses:
+                        raise ValueError(f"Invalid Tavily key status: {cleaned_status}")
+                    record.status = cleaned_status
+                    if cleaned_status == "active":
+                        record.cooldown_until = None
+                record.updated_at = now.isoformat()
+                self._save()
+                return TavilyKeyRecord(**record.__dict__)
+        return None
+
+    def reset_cooldown(self, key_id: str) -> TavilyKeyRecord | None:
+        now = datetime.now(timezone.utc)
+        with self._lock:
+            for record in self._records:
+                if record.id != key_id:
+                    continue
+                record.status = "active"
+                record.cooldown_until = None
+                record.updated_at = now.isoformat()
+                self._save()
+                return TavilyKeyRecord(**record.__dict__)
+        return None
+
+    def has_keys(self) -> bool:
+        now = datetime.now(timezone.utc)
+        with self._lock:
+            for record in self._records:
+                if record.status not in {"active", "cooling_down"}:
+                    continue
+                if record.cooldown_until:
+                    try:
+                        cooldown_until = datetime.fromisoformat(record.cooldown_until)
+                    except ValueError:
+                        cooldown_until = now
+                    if cooldown_until > now:
+                        continue
+                return True
+            return False
 
     def get_next_active_key(self) -> TavilyKeyRecord | None:
         now = datetime.now(timezone.utc)

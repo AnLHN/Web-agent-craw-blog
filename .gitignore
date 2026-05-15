@@ -17,3 +17,5 @@ frontend/.env.local
 # Logs and local artifacts
 *.log
 .DS_Store
+backend/.benchmark_tmp/
+frontend/node_modules_stale/

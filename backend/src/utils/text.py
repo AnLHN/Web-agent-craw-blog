@@ -1,4 +1,5 @@
 from urllib.parse import urlparse
+import re
 
 from src.models.schemas import SourceItem
 
@@ -23,6 +24,33 @@ def build_summary(query: str, sources: list[SourceItem]) -> str:
         lines.append(f"{index}. {snippet} (nguon: {source.domain})")
 
     return " ".join(lines)
+
+
+def finalize_summary_for_response(summary: str, query: str, sources: list[SourceItem]) -> str:
+    cleaned = (summary or "").replace("\r", "").replace("**", "").strip()
+    cleaned = re.sub(r"^\s*(dưới đây|duoi day)[^:\n]{0,240}:\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^[ \t]*[-*][ \t]+", "", cleaned, flags=re.MULTILINE)
+
+    lines = [line.rstrip() for line in cleaned.splitlines()]
+    while lines and not lines[-1].strip():
+        lines.pop()
+    while lines:
+        tail = lines[-1].strip()
+        if not tail:
+            lines.pop()
+            continue
+        if tail in {"*", "-", "•"}:
+            lines.pop()
+            continue
+        if re.search(r"(?:^|\s)(?:\d{1,3}[.)]?|[-*])\s*$", tail):
+            lines.pop()
+            continue
+        break
+
+    cleaned = "\n".join(lines).strip()
+    if not cleaned:
+        return build_summary(query=query, sources=sources)
+    return cleaned
 
 
 def compute_confidence(sources: list[SourceItem]) -> float:

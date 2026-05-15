@@ -124,14 +124,63 @@
 - Da bo sung root .gitignore va .env.example cho backend/frontend.
 - Da bao phu schema loi cho ca truong hop 404 route not found.
 
+## Update 2026-05-15
+
+### Da lam them
+- Local infra:
+  - `setup.sh` auto-start PostgreSQL container `websearch-pg`.
+  - `setup.sh` auto-start pgAdmin container `websearch-pgadmin`.
+  - `setup.sh` auto-start SearXNG local container `websearch-searxng`.
+  - SearXNG local da bat JSON format qua `config/searxng/settings.yml`.
+  - Da fix Docker mount path khi chay tu Git Bash tren Windows bang `MSYS_NO_PATHCONV=1`.
+- Postgres:
+  - Session/search trace dang dung `APP_SESSION_STORE_BACKEND=postgres`.
+  - Migration Alembic da tao schema session/search trace.
+- Tavily/SearXNG:
+  - Khi Tavily key disabled/unavailable, backend fallback qua local SearXNG.
+  - Da them `APP_FORCE_SEARXNG_TEST_MODE=true` de test fallback SearXNG khi tat Tavily.
+- Prompt/output:
+  - Da them Prompt Manager UI.
+  - Runtime LLM config co `summary_system_prompt` va `summary_max_chars`.
+  - `summary_max_chars` nay nen hieu la `Target Output Length`.
+  - Backend khong uu tien cat output sau khi sinh nua; neu LLM tra qua dai thi goi rewrite compact de LLM tu rut gon trong ngan sach.
+  - Da them regression test `test_llm_summary_rewrites_to_length_budget_instead_of_cutting`.
+- Windows/Git Bash:
+  - Da hardening cleanup port/process cho backend `8011`.
+  - Neu port van LISTEN voi PID ao, dung PowerShell Admin `Restart-Service WinNat -Force`.
+
+### Viec tiep theo uu tien
+1. Tach UI thanh sidebar tabs ben trai:
+   - `Search`
+   - `Tavily Keys`
+   - `Ops Dashboard`
+   - `Prompt Manager`
+2. Chuyen Prompt Manager tu popup thanh tab/panel rieng, co the giu quick popup neu can.
+3. Sau do moi lam SSE streaming:
+   - `POST /api/v1/search/stream`
+   - stream status pipeline + token LLM realtime qua FastAPI.
+
+### File nen doc khi tiep tuc
+- `plans/plan-web-search-tavily-searxng-fastapi-nextjs.md`
+- `README.md`
+- `docs/env-reference.md`
+- `docs/setup-cross-platform.md`
+- `frontend/src/components/SearchWorkspace.tsx`
+- `frontend/src/components/OpsDashboard.tsx`
+- `frontend/src/components/PromptManagerPopup.tsx`
+- `backend/src/services/llm_summary_service.py`
+- `backend/src/services/search_orchestrator.py`
+
 ## Huong dan chay nhanh
 1. Backend
 - cd backend
-- /home/ntcai/ntc-hub/web-agent/.venv/bin/python -m uvicorn src.main:app --reload --port 8000
+- ../.venv/Scripts/python.exe -m uvicorn src.main:app --reload --host 127.0.0.1 --port 8011
 
 2. Frontend
 - cd frontend
-- npm run dev
+- npm run dev -- --hostname 0.0.0.0 --port 3005
 
 3. Cau hinh frontend -> backend
-- NEXT_PUBLIC_API_BASE=http://localhost:8000/api/v1
+- NEXT_PUBLIC_API_BASE=/api/v1
+- API_PROXY_HOST=127.0.0.1
+- API_PROXY_PORT=8011

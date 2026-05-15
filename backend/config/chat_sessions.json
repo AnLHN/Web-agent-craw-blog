@@ -1,0 +1,35 @@
+[
+  {
+    "id": "f3f07883-a9a4-4094-8303-fb41337c755d",
+    "title": "Session 13:50:57 15/5/2026",
+    "status": "active",
+    "created_at": "2026-05-15T06:50:57.808537+00:00",
+    "updated_at": "2026-05-15T06:51:01.075534+00:00",
+    "last_message_at": "2026-05-15T06:51:01.075534+00:00",
+    "message_count": 2,
+    "messages": [
+      {
+        "id": "3769b95f-9a98-4c6f-94d3-72693163199e",
+        "role": "user",
+        "content": "hãy cho tôi thông tin tóm tắt về RAG",
+        "created_at": "2026-05-15T06:51:01.066126Z",
+        "metadata": {
+          "top_k": 5
+        }
+      },
+      {
+        "id": "ed0938df-43f7-4e48-83e0-a4b29f59f9f0",
+        "role": "assistant",
+        "content": "Khong tim thay ket qua phu hop tu Tavily hoac SearXNG.",
+        "created_at": "2026-05-15T06:51:01.075534Z",
+        "metadata": {
+          "provider_used": "none",
+          "confidence": 0.0,
+          "source_count": 0,
+          "attempt_count": 10
+        }
+      }
+    ],
+    "metadata": {}
+  }
+]

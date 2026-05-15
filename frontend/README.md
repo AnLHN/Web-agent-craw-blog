@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Web Search Frontend
 
-## Getting Started
+Next.js app cho giao dien search, session history, Tavily keys, Ops Dashboard va Prompt Manager.
 
-First, run the development server:
+## Setup
+
+Neu chua co env local:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.example .env.local
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Sau do cai dependency:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm install
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Run dev
 
-## Learn More
+```bash
+npm run dev -- --hostname 0.0.0.0 --port 3005
+```
 
-To learn more about Next.js, take a look at the following resources:
+Frontend se goi API qua rewrite `/api/v1/*` -> backend host/port theo env:
+- `API_PROXY_HOST`
+- `API_PROXY_PORT`
+- `NEXT_PUBLIC_API_BASE`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## UI hien tai
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Search workspace: nhap query, xem summary, sources, attempts/debug trace.
+- Tavily Key Manager: them/xoa/disable key.
+- Ops Dashboard: runtime LLM config, health/test, audit/ops controls.
+- Prompt Manager: chinh `summary_system_prompt` va `Target Output Length`.
 
-## Deploy on Vercel
+## Roadmap gan nhat
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Can tach cac khu vuc quan tri thanh sidebar tabs ben trai de tranh moi thu nam chung tren mot trang:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `Search`
+- `Tavily Keys`
+- `Ops Dashboard`
+- `Prompt Manager`
+
+Chi tiet xem `../plans/plan-web-search-tavily-searxng-fastapi-nextjs.md`, muc `Update 2026-05-15`.
+
+## Build checks
+
+```bash
+npm run lint
+npm run build
+```
+
+## Note
+
+Gia tri env mac dinh cho local da duoc dinh nghia trong `.env.example`.

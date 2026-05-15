@@ -6,8 +6,14 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from src.config.settings import Settings, get_settings
 from src.routes.api import api_router
+from src.services.evidence_merge_service import EvidenceMergeService
+from src.services.chat_session_store_factory import build_chat_session_store
+from src.services.audit_log_store import AuditLogStore
 from src.services.key_store import TavilyKeyStore
+from src.services.llm_runtime_store import LlmRuntimeStore
 from src.services.llm_summary_service import LlmSummaryService
+from src.services.query_analyst_service import QueryAnalystService
+from src.services.query_planner_service import QueryPlannerService
 from src.services.query_cache import QueryCache
 from src.services.search_orchestrator import SearchOrchestrator
 from src.services.searxng_service import SearxngSearchService
@@ -17,12 +23,33 @@ from src.utils.response import utc_now_iso
 
 def build_services(settings: Settings) -> dict:
     key_store = TavilyKeyStore(file_path=settings.tavily_key_store_path)
+    chat_session_store = build_chat_session_store(settings=settings)
+    print(
+        "[startup] session_store_backend=",
+        settings.session_store_backend,
+        "database_url=",
+        settings.database_url,
+        "store_type=",
+        type(chat_session_store).__name__,
+        flush=True,
+    )
+    audit_log_store = AuditLogStore(file_path=settings.audit_log_store_path)
+    llm_runtime_store = LlmRuntimeStore(
+        settings=settings,
+        file_path=settings.llm_runtime_store_path,
+    )
     query_cache = QueryCache(ttl_seconds=settings.result_cache_ttl_seconds)
     tavily_service = TavilySearchService(settings=settings, key_store=key_store)
     searxng_service = SearxngSearchService(settings=settings)
-    llm_summary_service = LlmSummaryService(settings=settings)
+    query_analyst_service = QueryAnalystService(settings=settings)
+    query_planner_service = QueryPlannerService(settings=settings)
+    evidence_merge_service = EvidenceMergeService()
+    llm_summary_service = LlmSummaryService(settings=settings, runtime_store=llm_runtime_store)
     orchestrator = SearchOrchestrator(
         settings=settings,
+        query_analyst_service=query_analyst_service,
+        query_planner_service=query_planner_service,
+        evidence_merge_service=evidence_merge_service,
         tavily_service=tavily_service,
         searxng_service=searxng_service,
         llm_summary_service=llm_summary_service,
@@ -31,9 +58,15 @@ def build_services(settings: Settings) -> dict:
 
     return {
         "key_store": key_store,
+        "chat_session_store": chat_session_store,
         "query_cache": query_cache,
+        "llm_runtime_store": llm_runtime_store,
+        "audit_log_store": audit_log_store,
         "tavily_service": tavily_service,
         "searxng_service": searxng_service,
+        "query_analyst_service": query_analyst_service,
+        "query_planner_service": query_planner_service,
+        "evidence_merge_service": evidence_merge_service,
         "llm_summary_service": llm_summary_service,
         "orchestrator": orchestrator,
     }

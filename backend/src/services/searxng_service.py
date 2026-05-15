@@ -14,17 +14,29 @@ from src.utils.text import extract_domain
 class SearxngSearchService:
     def __init__(self, settings: Settings):
         self.settings = settings
-        self._lock = asyncio.Lock()
+        self._lock: asyncio.Lock | None = None
         self._request_times: deque[float] = deque()
         self._consecutive_failures = 0
         self._circuit_open_until: datetime | None = None
+
+    def _get_lock(self) -> asyncio.Lock:
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+            return self._lock
+        try:
+            loop = asyncio.get_running_loop()
+            if self._lock._get_loop() is not loop:  # type: ignore[attr-defined]
+                self._lock = asyncio.Lock()
+        except RuntimeError:
+            self._lock = asyncio.Lock()
+        return self._lock
 
     async def _throttle(self) -> None:
         if self.settings.searxng_max_qps <= 0:
             return
 
         min_interval = 1.0 / self.settings.searxng_max_qps
-        async with self._lock:
+        async with self._get_lock():
             now = time.monotonic()
             while self._request_times and now - self._request_times[0] > 1.0:
                 self._request_times.popleft()
@@ -64,8 +76,12 @@ class SearxngSearchService:
                 urls.append(backup)
         return urls
 
-    async def search(self, query: str, top_k: int) -> ProviderSearchResult:
-        if self._is_circuit_open():
+    def reset_circuit(self) -> None:
+        self._consecutive_failures = 0
+        self._circuit_open_until = None
+
+    async def search(self, query: str, top_k: int, ignore_circuit: bool = False) -> ProviderSearchResult:
+        if (not ignore_circuit) and self._is_circuit_open():
             return ProviderSearchResult(
                 provider="searxng",
                 sources=[],
