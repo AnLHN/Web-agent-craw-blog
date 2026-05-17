@@ -25,10 +25,10 @@ function ChatBubble(props: {
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div
-        className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-7 shadow-sm ${
+        className={`max-w-[85%] rounded-3xl px-4 py-3 text-sm leading-7 shadow-sm ${
           isUser
-            ? "bg-amber-500 text-stone-900"
-            : "border border-stone-200 bg-stone-50 text-stone-800"
+            ? "bg-gradient-to-br from-blue-600 to-orange-500 text-white"
+            : "border border-blue-100 bg-white text-stone-800"
         } ${props.compact ? "leading-6" : ""}`}
       >
         <p className="whitespace-pre-line">{props.content}</p>
@@ -48,12 +48,12 @@ export function SearchResultPanel({
   const hasSessionMessages = sessionMessages.length > 0;
 
   return (
-    <section className="rounded-2xl border border-stone-300 bg-white/90 p-5 shadow-sm">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-stone-900">Chat</h2>
+    <section className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-blue-700/70">Cuộc trò chuyện tìm kiếm web</h2>
         {result ? (
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-800">
+            <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-800">
               Provider: {result.provider_used}
             </span>
             <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-800">
@@ -63,11 +63,11 @@ export function SearchResultPanel({
         ) : null}
       </div>
 
-      <div className="space-y-3 rounded-xl border border-stone-200 bg-white p-3">
+      <div className="space-y-3">
         {!hasSessionMessages && !latestUserQuery && !isLoading && !errorMessage && !result ? (
           <ChatBubble
             role="assistant"
-            content="Xin chao. Ban cu nhap cau hoi o o tren, minh se tra ve cau tra loi theo kieu chat de doc de theo doi."
+            content="Xin chào. Bạn cứ nhập câu hỏi ở ô bên dưới, mình sẽ tìm nguồn web và trả lời theo dạng chat để bạn dễ theo dõi."
           />
         ) : null}
 
@@ -87,7 +87,7 @@ export function SearchResultPanel({
         {isLoading ? (
           <ChatBubble
             role="assistant"
-            content="Dang tim nguon va tong hop cau tra loi..."
+            content="Đang tìm nguồn và tổng hợp câu trả lời..."
             compact
           />
         ) : null}
@@ -101,13 +101,13 @@ export function SearchResultPanel({
 
       {result && !isLoading && !errorMessage ? (
         <>
-      <details className="mt-6 rounded-xl border border-stone-200 bg-stone-50 p-3">
+      <details className="rounded-2xl border border-blue-100 bg-white p-3 shadow-sm">
         <summary className="cursor-pointer text-sm font-semibold uppercase tracking-wide text-stone-600">
-          Sources ({result.sources.length})
+          Nguồn ({result.sources.length})
         </summary>
         <ul className="mt-3 space-y-3">
           {result.sources.map((source) => (
-            <li key={source.url} className="rounded-xl border border-stone-200 bg-white p-3">
+            <li key={source.url} className="rounded-2xl border border-blue-100 bg-blue-50/40 p-3">
               <a
                 href={source.url}
                 target="_blank"
@@ -123,7 +123,7 @@ export function SearchResultPanel({
         </ul>
       </details>
 
-      <details className="mt-4 rounded-xl border border-stone-200 bg-stone-50 p-3">
+      <details className="rounded-2xl border border-blue-100 bg-white p-3 shadow-sm">
         <summary className="cursor-pointer text-sm font-semibold uppercase tracking-wide text-stone-600">
           Pipeline attempts ({result.attempts.length})
         </summary>
@@ -154,7 +154,7 @@ export function SearchResultPanel({
       </details>
 
       {result.query_analysis ? (
-        <details className="mt-4 rounded-xl border border-stone-200 bg-stone-50 p-4">
+        <details className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
           <summary className="cursor-pointer text-sm font-semibold uppercase tracking-wide text-stone-600">
             Debug Trace
           </summary>

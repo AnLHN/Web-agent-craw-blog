@@ -1,4 +1,6 @@
 import asyncio
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from src.config.settings import Settings
 from src.models.schemas import ProviderAttempt, QueryAnalysisInfo, SearchResultData, SourceItem
@@ -10,6 +12,8 @@ from src.services.query_cache import QueryCache
 from src.services.searxng_service import SearxngSearchService
 from src.services.tavily_service import TavilySearchService
 from src.utils.text import build_summary, compute_confidence, is_quality_enough
+
+SearchEventEmitter = Callable[[str, dict[str, Any]], Awaitable[None]]
 
 
 class SearchOrchestrator:
@@ -175,8 +179,21 @@ class SearchOrchestrator:
         return results, attempts, cache_hits
 
     async def search(self, query: str, top_k: int) -> SearchResultData:
+        return await self.search_with_events(query=query, top_k=top_k, emit=None)
+
+    async def search_with_events(
+        self,
+        query: str,
+        top_k: int,
+        emit: SearchEventEmitter | None = None,
+    ) -> SearchResultData:
+        async def send(status: str, **payload: Any) -> None:
+            if emit is not None:
+                await emit("status", {"status": status, **payload})
+
         cached = self.query_cache.get(query=query, top_k=top_k)
         if cached:
+            await send("cache_hit", source_count=len(cached.sources))
             cached.attempts.insert(
                 0,
                 ProviderAttempt(
@@ -197,12 +214,25 @@ class SearchOrchestrator:
         force_searxng = False
 
         if self.settings.pipeline_mode != "classic":
+            await send("query_analysis_started")
             analysis = await self.query_analyst_service.analyze(query=query)
             if analysis.attempt:
                 attempts.append(ProviderAttempt(**analysis.attempt.__dict__))
+            await send(
+                "query_analysis_done",
+                subquery_count=len(analysis.sub_queries),
+                intent=analysis.intent,
+            )
+            await send("query_planning_started")
             plan = await self.query_planner_service.plan(analysis.sub_queries)
             if plan.attempt:
                 attempts.append(ProviderAttempt(**plan.attempt.__dict__))
+            await send(
+                "query_planning_done",
+                planned_subquery_count=len(plan.planned_sub_queries),
+                complexity=plan.complexity,
+                retrieval_budget=plan.retrieval_budget,
+            )
             run_queries = plan.planned_sub_queries or [analysis.normalized_query or query]
             fallback_queries = [
                 item for item in analysis.sub_queries if item not in run_queries
@@ -213,13 +243,20 @@ class SearchOrchestrator:
                 force_searxng = self.settings.force_searxng_test_mode
         total_subquery_count = len(run_queries)
 
+        await send("retrieval_started", subquery_count=len(run_queries))
         multi_results, multi_attempts, cache_hits = await self._run_multi_query(
             queries=run_queries,
             top_k=top_k,
             force_searxng=force_searxng,
         )
         attempts.extend(multi_attempts)
+        await send(
+            "retrieval_done",
+            source_count=sum(len(item.sources) for item in multi_results),
+            cache_hits=cache_hits,
+        )
 
+        await send("evidence_merge_started")
         merge_result = self.evidence_merge_service.merge(
             all_sources=[src for item in multi_results for src in item.sources],
             top_k=max(top_k, self.settings.quality_min_results),
@@ -227,8 +264,14 @@ class SearchOrchestrator:
         if merge_result.attempt:
             attempts.append(ProviderAttempt(**merge_result.attempt.__dict__))
         merged_sources = merge_result.kept_sources
+        await send(
+            "evidence_merge_done",
+            kept_count=len(merged_sources),
+            dropped_count=merge_result.dropped_count,
+        )
 
         if not merged_sources:
+            await send("fallback_single_query_started")
             attempts.append(
                 ProviderAttempt(
                     provider="fallback_single_query",
@@ -251,6 +294,7 @@ class SearchOrchestrator:
             if merge_result.attempt:
                 attempts.append(ProviderAttempt(**merge_result.attempt.__dict__))
             merged_sources = merge_result.kept_sources
+            await send("fallback_single_query_done", source_count=len(merged_sources))
 
         need_extra_round = (
             self.settings.pipeline_mode != "classic"
@@ -260,6 +304,7 @@ class SearchOrchestrator:
         )
 
         if need_extra_round:
+            await send("quality_gate_extra_round_started", current_source_count=len(merged_sources))
             attempts.append(
                 ProviderAttempt(
                     provider="quality_gate",
@@ -287,6 +332,7 @@ class SearchOrchestrator:
             if merge_result.attempt:
                 attempts.append(ProviderAttempt(**merge_result.attempt.__dict__))
             merged_sources = merge_result.kept_sources
+            await send("quality_gate_extra_round_done", source_count=len(merged_sources))
         else:
             attempts.append(
                 ProviderAttempt(
@@ -297,6 +343,7 @@ class SearchOrchestrator:
                     result_count=len(merged_sources),
                 )
             )
+            await send("quality_gate_passed", source_count=len(merged_sources))
 
         if merged_sources:
             providers = [item.provider_used for item in multi_results]
@@ -308,11 +355,13 @@ class SearchOrchestrator:
                 final_provider = "none"
             else:
                 final_provider = "multi_query_tavily_first"
+            await send("llm_summary_started", source_count=len(merged_sources))
             summary = await self._resolve_summary(
                 query=query,
                 sources=merged_sources,
                 attempts=attempts,
             )
+            await send("llm_summary_done", summary_length=len(summary))
             data = SearchResultData(
                 query=query,
                 provider_used=final_provider,
@@ -330,6 +379,7 @@ class SearchOrchestrator:
                 sources=[],
                 attempts=attempts,
             )
+            await send("no_sources_found")
 
         if analysis is not None and plan is not None:
             data.query_analysis = QueryAnalysisInfo(

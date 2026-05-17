@@ -11,22 +11,33 @@ import {
   fetchTavilyKeys,
   getChatSession,
   listChatSessions,
-  replayChatSession,
-  searchWeb,
+  searchWebStream,
 } from "@/services/apiClient";
-import { ChatSession, SearchData, TavilyKeyInfo } from "@/types/api";
+import { ChatSession, SearchData, SearchStreamStatusEvent, TavilyKeyInfo } from "@/types/api";
 import { prettyDate } from "@/utils/date";
 
 import { KeyManager } from "./KeyManager";
 import { OpsDashboard } from "./OpsDashboard";
-import { PromptManagerPopup } from "./PromptManagerPopup";
+import { PromptManagerPanel } from "./PromptManagerPopup";
 import { SearchResultPanel } from "./SearchResultPanel";
+
+type TabKey = "tavily-keys" | "ops" | "prompts";
+
+type NavItem = {
+  key: TabKey;
+  label: string;
+  shortLabel: string;
+};
 
 export function SearchWorkspace() {
   const featureSessionHistory =
     (process.env.NEXT_PUBLIC_FEATURE_SESSION_HISTORY || "true").toLowerCase() !== "false";
   const featureOpsDashboard =
     (process.env.NEXT_PUBLIC_FEATURE_OPS_DASHBOARD || "true").toLowerCase() !== "false";
+  const featureLlmRuntimeConfig =
+    (process.env.NEXT_PUBLIC_FEATURE_LLM_RUNTIME_CONFIG || "true").toLowerCase() !== "false";
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabKey>("tavily-keys");
   const [query, setQuery] = useState("");
   const [topK, setTopK] = useState(5);
 
@@ -34,6 +45,8 @@ export function SearchWorkspace() {
   const [lastSubmittedQuery, setLastSubmittedQuery] = useState("");
   const [searchError, setSearchError] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [streamStatuses, setStreamStatuses] = useState<SearchStreamStatusEvent[]>([]);
+  const [streamedAnswer, setStreamedAnswer] = useState("");
 
   const [keys, setKeys] = useState<TavilyKeyInfo[]>([]);
   const [isLoadingKeys, setIsLoadingKeys] = useState(false);
@@ -149,22 +162,6 @@ export function SearchWorkspace() {
     return session.id;
   }
 
-  async function handleReplaySession(sessionId: string) {
-    try {
-      const response = await replayChatSession(sessionId);
-      if (!response.success || !response.data) {
-        setSessionError(response.error?.message || "Khong replay duoc session.");
-        return;
-      }
-      const replayed = response.data.session;
-      setCurrentSessionId(replayed.id);
-      setCurrentSession(replayed);
-      await loadSessionHistory();
-    } catch {
-      setSessionError("Khong ket noi duoc backend khi replay session.");
-    }
-  }
-
   async function handleDeleteSession(sessionId: string) {
     try {
       const response = await deleteChatSession(sessionId);
@@ -222,6 +219,8 @@ export function SearchWorkspace() {
     return () => {
       window.clearTimeout(timerId);
     };
+    // Initial boot load only; tab changes should not refetch all workspace data.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleSearch(event: FormEvent<HTMLFormElement>) {
@@ -232,24 +231,39 @@ export function SearchWorkspace() {
 
     setSearchError(null);
     setIsSearching(true);
+    setResult(null);
+    setStreamStatuses([]);
+    setStreamedAnswer("");
 
     try {
       const submittedQuery = query.trim();
       setLastSubmittedQuery(submittedQuery);
       const sessionIdForSearch = await ensureActiveSessionForSearch();
-      const response = await searchWeb(
+      await searchWebStream(
         submittedQuery,
         topK,
         sessionIdForSearch,
+        (event) => {
+          if (event.type === "status") {
+            setStreamStatuses((prev) => [...prev.slice(-7), event]);
+            return;
+          }
+          if (event.type === "token") {
+            setStreamedAnswer((prev) => `${prev}${event.text}`);
+            return;
+          }
+          if (event.type === "done") {
+            setResult(event.result);
+            return;
+          }
+          if (event.type === "error") {
+            setResult(null);
+            setSearchError(event.message);
+          }
+        },
       );
-      if (!response.success || !response.data) {
-        setResult(null);
-        setSearchError(response.error?.message || "Search that bai.");
-        return;
-      }
-      setResult(response.data);
-      if (featureSessionHistory && currentSessionId) {
-        await loadSessionDetail(currentSessionId);
+      if (featureSessionHistory && sessionIdForSearch) {
+        await loadSessionDetail(sessionIdForSearch);
         await loadSessionHistory();
       }
     } catch {
@@ -294,180 +308,222 @@ export function SearchWorkspace() {
     }
   }
 
-  return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-8 md:px-8">
-      <PromptManagerPopup />
-      <header className="rounded-3xl border border-stone-300 bg-[radial-gradient(circle_at_top_left,_#fde68a_0%,_#fff7ed_40%,_#fafaf9_100%)] p-6 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-500">
-          Tavily-first Search Pipeline
-        </p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight text-stone-900 md:text-4xl">
-          Web Search Aggregator
-        </h1>
-        <p className="mt-3 max-w-3xl text-sm leading-7 text-stone-700 md:text-base">
-          Moi truy van deu uu tien Tavily truoc. Chi khi Tavily khong co key, het
-          quota, hoac ket qua khong dat nguong thi moi fallback sang SearXNG.
-        </p>
-      </header>
+  const navItems: NavItem[] = [
+    { key: "tavily-keys", label: "Tavily Keys", shortLabel: "Keys" },
+    ...(featureOpsDashboard ? [{ key: "ops" as const, label: "Ops Dashboard", shortLabel: "Ops" }] : []),
+    ...(featureLlmRuntimeConfig
+      ? [{ key: "prompts" as const, label: "Prompt Manager", shortLabel: "Prompts" }]
+      : []),
+  ];
 
-      <div className="mt-6 grid gap-6">
-        <KeyManager
-          keys={keys}
-          isLoading={isLoadingKeys}
-          errorMessage={keysError}
-          onAdd={handleAddKey}
-          onDelete={handleDeleteKey}
-        />
+  function renderSessionSidebar() {
+    if (!featureSessionHistory) {
+      return null;
+    }
 
-        <div className={`grid gap-6 ${featureSessionHistory ? "lg:grid-cols-[300px_1fr]" : ""}`}>
-          {featureSessionHistory ? <aside className="space-y-4">
-            <section className="rounded-2xl border border-stone-300 bg-white/90 p-4 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-600">
-                  Current Session
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => void handleCreateSession()}
-                  className="rounded-lg border border-stone-300 bg-white px-2 py-1 text-xs font-medium text-stone-700 hover:bg-stone-100"
+    return (
+      <aside className="flex h-screen min-h-0 flex-col border-r border-blue-950/30 bg-[#102a56] text-blue-50">
+        <div className="border-b border-white/10 p-3">
+          <button
+            type="button"
+            onClick={() => {
+              void handleCreateSession();
+            }}
+            className="w-full rounded-xl border border-white/15 bg-white/8 px-3 py-2 text-left text-sm font-medium text-white shadow-sm hover:bg-white/14"
+          >
+            Chat mới
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
+          <p className="px-2 text-[11px] font-semibold uppercase text-blue-200/70">Lịch sử chat</p>
+          {sessionError ? <p className="mt-2 px-2 text-xs text-orange-200">{sessionError}</p> : null}
+          {isLoadingSessions ? <p className="mt-2 px-2 text-xs text-blue-100/60">Loading...</p> : null}
+          <div className="mt-2 space-y-1">
+            {sessions.map((session) => {
+              const isActive = currentSessionId === session.id;
+              return (
+                <div
+                  key={session.id}
+                  className={`group rounded-xl transition ${
+                    isActive ? "bg-white text-blue-950 shadow-sm" : "hover:bg-white/10"
+                  }`}
                 >
-                  New
-                </button>
-              </div>
-              <p className="mt-2 text-sm text-stone-800">{currentSessionLabel}</p>
-              {sessionError ? (
-                <p className="mt-2 text-xs text-red-700">{sessionError}</p>
-              ) : null}
-            </section>
-
-            <section className="rounded-2xl border border-stone-300 bg-white/90 p-4 shadow-sm">
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-600">
-                  Session History
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => void handleClearSessions()}
-                  className="rounded-md border border-stone-300 px-2 py-1 text-[11px] text-stone-700 hover:bg-stone-100"
-                >
-                  Clear all
-                </button>
-              </div>
-              <div className="mt-3 space-y-2">
-                {isLoadingSessions ? (
-                  <p className="text-xs text-stone-500">Loading sessions...</p>
-                ) : null}
-                {sessions.map((session) => (
-                  <div
-                    key={session.id}
-                    className={`w-full rounded-xl border px-3 py-2 text-left transition ${
-                      currentSessionId === session.id
-                        ? "border-amber-400 bg-amber-50"
-                        : "border-stone-200 bg-white hover:bg-stone-50"
-                    }`}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurrentSessionId(session.id);
+                      void loadSessionDetail(session.id);
+                    }}
+                    className="w-full px-2 py-2 text-left"
                   >
+                    <p className="line-clamp-1 text-sm font-medium">{session.title}</p>
+                    <p className={`mt-0.5 text-[11px] ${isActive ? "text-blue-700" : "text-blue-100/55"}`}>
+                      {prettyDate(session.last_message_at)} | {session.message_count} msgs
+                    </p>
+                  </button>
+                  <div className="hidden gap-1 px-2 pb-2 group-hover:flex">
                     <button
                       type="button"
-                      onClick={() => {
-                        setCurrentSessionId(session.id);
-                        void loadSessionDetail(session.id);
-                      }}
-                      className="w-full text-left"
+                      onClick={() => void handleDeleteSession(session.id)}
+                      className={`rounded-lg border px-2 py-1 text-[11px] ${
+                        isActive
+                          ? "border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100"
+                          : "border-orange-300/30 text-orange-100 hover:bg-orange-900/30"
+                      }`}
                     >
-                      <p className="line-clamp-1 text-sm font-medium text-stone-800">
-                        {session.title}
-                      </p>
-                      <p className="text-xs text-stone-500">
-                        {prettyDate(session.last_message_at)} | {session.message_count} msgs
-                      </p>
+                      Delete
                     </button>
-                    <div className="mt-2 flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void handleReplaySession(session.id);
-                        }}
-                        className="rounded-md border border-stone-300 px-2 py-1 text-[11px] text-stone-700 hover:bg-stone-100"
-                      >
-                        Replay
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void navigator.clipboard.writeText(session.title);
-                        }}
-                        className="rounded-md border border-stone-300 px-2 py-1 text-[11px] text-stone-700 hover:bg-stone-100"
-                      >
-                        Copy title
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void handleDeleteSession(session.id);
-                        }}
-                        className="rounded-md border border-red-300 px-2 py-1 text-[11px] text-red-700 hover:bg-red-50"
-                      >
-                        Delete
-                      </button>
+                  </div>
+                </div>
+              );
+            })}
+            {!isLoadingSessions && sessions.length === 0 ? (
+              <p className="px-2 py-2 text-xs text-blue-100/55">Chưa có lịch sử chat.</p>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="border-t border-white/10 p-3">
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(true)}
+            className="w-full rounded-xl bg-orange-300 px-3 py-2 text-left text-sm font-semibold text-blue-950 shadow-sm hover:bg-orange-200"
+          >
+            Cài đặt
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleClearSessions()}
+            className="mt-3 w-full rounded-xl border border-white/10 px-3 py-2 text-left text-xs text-blue-100/60 hover:bg-white/10"
+          >
+            Xóa lịch sử
+          </button>
+        </div>
+      </aside>
+    );
+  }
+
+  function renderSettingsContent() {
+    if (activeTab === "ops" && featureOpsDashboard) {
+      return <OpsDashboard onKeysChanged={loadKeys} />;
+    }
+
+    if (activeTab === "prompts" && featureLlmRuntimeConfig) {
+      return <PromptManagerPanel />;
+    }
+
+    return (
+      <KeyManager
+        keys={keys}
+        isLoading={isLoadingKeys}
+        errorMessage={keysError}
+        onAdd={handleAddKey}
+        onDelete={handleDeleteKey}
+      />
+    );
+  }
+
+  function renderSettingsModal() {
+    if (!settingsOpen) {
+      return null;
+    }
+
+    return (
+      <div className="fixed inset-0 z-50 bg-blue-950/45 p-3 backdrop-blur-sm md:p-6">
+        <div className="mx-auto flex h-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-blue-100 bg-[#f8fbff] shadow-2xl">
+          <div className="flex items-center justify-between border-b border-blue-100 bg-white px-5 py-4">
+            <div>
+              <p className="text-xs font-semibold uppercase text-orange-600">Cài đặt</p>
+              <h2 className="text-lg font-semibold text-stone-900">Quản lý hệ thống</h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(false)}
+              className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-800 hover:bg-blue-50"
+            >
+              Đóng
+            </button>
+          </div>
+
+          <div className="grid min-h-0 flex-1 md:grid-cols-[220px_1fr]">
+            <nav className="flex gap-2 overflow-x-auto border-b border-blue-100 bg-white p-3 md:block md:space-y-1 md:overflow-visible md:border-b-0 md:border-r">
+              {navItems.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setActiveTab(item.key)}
+                  className={`shrink-0 rounded-xl px-3 py-2 text-left text-sm font-medium transition md:w-full ${
+                    activeTab === item.key
+                      ? "bg-blue-700 text-white shadow-sm"
+                      : "border border-blue-100 bg-white text-stone-700 hover:bg-orange-50 md:border-0"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </nav>
+
+            <div className="min-h-0 overflow-y-auto p-4 md:p-5">
+              {renderSettingsContent()}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderChatWorkspace() {
+    return (
+      <div className="flex h-screen min-h-0 flex-col bg-[#f5f9ff]">
+        <header className="flex items-center justify-between border-b border-blue-100 bg-white/90 px-4 py-3 backdrop-blur">
+          <div className="min-w-0">
+            <h1 className="truncate text-base font-semibold text-stone-900">Web Search Chat</h1>
+            <p className="truncate text-xs text-blue-700/70">{currentSessionLabel}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(true)}
+            className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-800 shadow-sm hover:bg-orange-50"
+          >
+            Cài đặt
+          </button>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-5 md:px-8">
+          <div className="mx-auto max-w-3xl space-y-4">
+            {(isSearching || streamStatuses.length > 0 || streamedAnswer) && !result && !searchError ? (
+              <section className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+                <div className="grid gap-4 md:grid-cols-[220px_1fr]">
+                  <div>
+                    <h3 className="text-sm font-semibold text-blue-900">Trạng thái xử lý</h3>
+                    <div className="mt-3 space-y-2">
+                      {streamStatuses.length === 0 ? (
+                        <p className="text-xs text-stone-500">Đang chờ luồng phản hồi...</p>
+                      ) : null}
+                      {streamStatuses.map((item, index) => (
+                        <div key={`${item.status}-${index}`} className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2">
+                          <p className="text-xs font-medium text-stone-800">{item.status.replaceAll("_", " ")}</p>
+                          {"source_count" in item ? (
+                            <p className="text-[11px] text-stone-500">sources: {String(item.source_count)}</p>
+                          ) : null}
+                        </div>
+                      ))}
                     </div>
                   </div>
-                ))}
-                {!isLoadingSessions && sessions.length === 0 ? (
-                  <p className="text-xs text-stone-500">No session history yet.</p>
-                ) : null}
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-stone-300 bg-white/90 p-4 shadow-sm">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-600">
-                Session Thread
-              </h2>
-              <div className="mt-3 max-h-72 space-y-2 overflow-auto pr-1">
-                {(currentSession?.messages || []).map((message) => (
-                  <div key={message.id} className="rounded-lg border border-stone-200 bg-stone-50 p-2">
-                    <p className="text-[11px] uppercase tracking-wide text-stone-500">
-                      {message.role} | {prettyDate(message.created_at)}
-                    </p>
-                    <p className="mt-1 line-clamp-4 text-xs text-stone-800">{message.content}</p>
+                  <div>
+                    <h3 className="text-sm font-semibold text-blue-900">Câu trả lời đang tạo</h3>
+                    <div className="mt-3 min-h-28 rounded-2xl border border-orange-100 bg-orange-50/70 p-3 text-sm leading-7 text-stone-800">
+                      {streamedAnswer ? (
+                        <p className="whitespace-pre-line">{streamedAnswer}</p>
+                      ) : (
+                        <p className="text-stone-500">Đang tìm nguồn và tổng hợp câu trả lời...</p>
+                      )}
+                    </div>
                   </div>
-                ))}
-                {currentSession && currentSession.messages.length === 0 ? (
-                  <p className="text-xs text-stone-500">Session nay chua co message.</p>
-                ) : null}
-              </div>
-            </section>
-          </aside> : null}
-
-          <div className="space-y-6">
-            <section className="rounded-2xl border border-stone-300 bg-white/90 p-5 shadow-sm">
-              <form onSubmit={handleSearch} className="grid gap-3 md:grid-cols-[1fr_100px_auto]">
-                <input
-                  type="text"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Nhap truy van..."
-                  className="rounded-xl border border-stone-300 px-4 py-2 text-sm focus:border-amber-500 focus:outline-none"
-                />
-                <input
-                  type="number"
-                  min={1}
-                  max={10}
-                  value={topK}
-                  onChange={(event) => setTopK(Number(event.target.value) || 5)}
-                  className="rounded-xl border border-stone-300 px-4 py-2 text-sm focus:border-amber-500 focus:outline-none"
-                />
-                <button
-                  type="submit"
-                  disabled={isSearching}
-                  className="rounded-xl bg-amber-500 px-5 py-2 text-sm font-semibold text-stone-900 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isSearching ? "Searching..." : "Search"}
-                </button>
-              </form>
-              {featureSessionHistory && currentSessionId ? (
-                <p className="mt-2 text-xs text-stone-500">Session ID: {currentSessionId}</p>
-              ) : null}
-            </section>
+                </div>
+              </section>
+            ) : null}
 
             <SearchResultPanel
               isLoading={isSearching}
@@ -476,10 +532,54 @@ export function SearchWorkspace() {
               latestUserQuery={lastSubmittedQuery}
               sessionMessages={currentSession?.messages || []}
             />
-            {featureOpsDashboard ? <OpsDashboard onKeysChanged={loadKeys} /> : null}
           </div>
         </div>
+
+        <div className="border-t border-blue-100 bg-white/90 px-3 py-3 backdrop-blur md:px-8">
+          <form onSubmit={handleSearch} className="mx-auto grid max-w-3xl gap-2 rounded-3xl border border-blue-200 bg-white p-2 shadow-lg shadow-blue-900/5 md:grid-cols-[1fr_120px_auto]">
+            <input
+              type="text"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Nhập câu hỏi cần tìm trên web..."
+              className="rounded-2xl border-0 px-3 py-2 text-sm focus:outline-none"
+            />
+            <label
+              className="grid rounded-2xl border border-blue-100 bg-blue-50/60 px-3 py-1.5 focus-within:border-orange-400"
+              title="Số kết quả web tối đa sẽ lấy làm nguồn cho câu trả lời."
+            >
+              <span className="text-[10px] font-semibold uppercase leading-none text-blue-600">Nguồn</span>
+              <input
+                type="number"
+                min={1}
+                max={10}
+                value={topK}
+                onChange={(event) => setTopK(Number(event.target.value) || 5)}
+                aria-label="Số nguồn web"
+                className="w-full bg-transparent text-sm text-blue-950 focus:outline-none"
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={isSearching}
+              className="rounded-2xl bg-orange-500 px-5 py-2 text-sm font-semibold text-white transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isSearching ? "Đang tìm..." : "Tìm web"}
+            </button>
+          </form>
+          {featureSessionHistory && currentSessionId ? (
+            <p className="mx-auto mt-2 max-w-3xl break-all text-xs text-stone-400">Mã phiên: {currentSessionId}</p>
+          ) : null}
+        </div>
       </div>
+    );
+  }
+
+  return (
+    <main className={`grid min-h-screen ${featureSessionHistory ? "md:grid-cols-[280px_1fr]" : ""}`}>
+      {renderSessionSidebar()}
+      <section className="min-w-0">{renderChatWorkspace()}</section>
+      {renderSettingsModal()}
     </main>
   );
 }

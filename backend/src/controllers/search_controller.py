@@ -1,4 +1,8 @@
+import asyncio
+import json
+
 from fastapi import APIRouter, HTTPException, Request, status
+from fastapi.responses import StreamingResponse
 
 from src.models.schemas import (
     ErrorInfo,
@@ -42,6 +46,79 @@ def _keys_response(key_store) -> TavilyKeysResponse:
     return TavilyKeysResponse(success=True, data=TavilyKeysData(keys=keys), error=None, meta=response_meta())
 
 
+def _sse(event: str, data: dict) -> str:
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+def _summary_chunks(text: str, chunk_size: int = 80) -> list[str]:
+    cleaned = text.strip()
+    if not cleaned:
+        return []
+    chunks: list[str] = []
+    start = 0
+    while start < len(cleaned):
+        end = min(start + chunk_size, len(cleaned))
+        if end < len(cleaned):
+            split_at = cleaned.rfind(" ", start, end)
+            if split_at > start + 20:
+                end = split_at + 1
+        chunks.append(cleaned[start:end])
+        start = end
+    return chunks
+
+
+def _validate_search_session(payload: SearchRequest, request: Request, chat_session_store) -> ErrorInfo | None:
+    if payload.session_id and not feature_enabled(request, "feature_session_history"):
+        return ErrorInfo(
+            code="FEATURE_DISABLED",
+            message="Session history feature is disabled",
+            details=None,
+        )
+    if payload.session_id and not chat_session_store.get_session(payload.session_id):
+        return ErrorInfo(
+            code="SESSION_NOT_FOUND",
+            message="Chat session not found",
+            details={"session_id": payload.session_id},
+        )
+    return None
+
+
+def _persist_search_result(payload: SearchRequest, chat_session_store, result) -> None:
+    if payload.session_id:
+        chat_session_store.add_message(
+            session_id=payload.session_id,
+            role="user",
+            content=payload.query,
+            metadata={"top_k": payload.top_k},
+        )
+        chat_session_store.add_message(
+            session_id=payload.session_id,
+            role="assistant",
+            content=result.summary,
+            metadata={
+                "provider_used": result.provider_used,
+                "confidence": result.confidence,
+                "source_count": len(result.sources),
+                "attempt_count": len(result.attempts),
+            },
+        )
+    chat_session_store.save_search_run(
+        session_id=payload.session_id,
+        query=payload.query,
+        provider_used=result.provider_used,
+        summary=result.summary,
+        confidence=result.confidence,
+        query_analysis=(result.query_analysis.model_dump() if result.query_analysis else None),
+        attempts=[item.model_dump() for item in result.attempts],
+        sources=[item.model_dump() for item in result.sources],
+        debug_trace={
+            "attempt_count": len(result.attempts),
+            "source_count": len(result.sources),
+            "provider_used": result.provider_used,
+        },
+    )
+
+
 @router.get("/health", response_model=HealthResponse)
 async def health(request: Request) -> HealthResponse:
     settings = request.app.state.settings
@@ -64,26 +141,12 @@ async def search(payload: SearchRequest, request: Request) -> SearchResponse:
     orchestrator = request.app.state.services["orchestrator"]
     chat_session_store = request.app.state.services["chat_session_store"]
     try:
-        if payload.session_id and not feature_enabled(request, "feature_session_history"):
+        session_error = _validate_search_session(payload, request, chat_session_store)
+        if session_error:
             return SearchResponse(
                 success=False,
                 data=None,
-                error=ErrorInfo(
-                    code="FEATURE_DISABLED",
-                    message="Session history feature is disabled",
-                    details=None,
-                ),
-                meta=response_meta(),
-            )
-        if payload.session_id and not chat_session_store.get_session(payload.session_id):
-            return SearchResponse(
-                success=False,
-                data=None,
-                error=ErrorInfo(
-                    code="SESSION_NOT_FOUND",
-                    message="Chat session not found",
-                    details={"session_id": payload.session_id},
-                ),
+                error=session_error,
                 meta=response_meta(),
             )
 
@@ -93,39 +156,7 @@ async def search(payload: SearchRequest, request: Request) -> SearchResponse:
             query=result.query,
             sources=result.sources,
         )
-        if payload.session_id:
-            chat_session_store.add_message(
-                session_id=payload.session_id,
-                role="user",
-                content=payload.query,
-                metadata={"top_k": payload.top_k},
-            )
-            chat_session_store.add_message(
-                session_id=payload.session_id,
-                role="assistant",
-                content=result.summary,
-                metadata={
-                    "provider_used": result.provider_used,
-                    "confidence": result.confidence,
-                    "source_count": len(result.sources),
-                    "attempt_count": len(result.attempts),
-                },
-            )
-        chat_session_store.save_search_run(
-            session_id=payload.session_id,
-            query=payload.query,
-            provider_used=result.provider_used,
-            summary=result.summary,
-            confidence=result.confidence,
-            query_analysis=(result.query_analysis.model_dump() if result.query_analysis else None),
-            attempts=[item.model_dump() for item in result.attempts],
-            sources=[item.model_dump() for item in result.sources],
-            debug_trace={
-                "attempt_count": len(result.attempts),
-                "source_count": len(result.sources),
-                "provider_used": result.provider_used,
-            },
-        )
+        _persist_search_result(payload, chat_session_store, result)
         return SearchResponse(success=True, data=result, error=None, meta=response_meta())
     except Exception as exc:
         return SearchResponse(
@@ -134,6 +165,88 @@ async def search(payload: SearchRequest, request: Request) -> SearchResponse:
             error=ErrorInfo(code="SEARCH_FAILED", message="Search pipeline failed", details={"error": str(exc)}),
             meta=response_meta(),
         )
+
+
+@router.post("/search/stream")
+async def search_stream(payload: SearchRequest, request: Request) -> StreamingResponse:
+    orchestrator = request.app.state.services["orchestrator"]
+    chat_session_store = request.app.state.services["chat_session_store"]
+
+    async def event_generator():
+        queue: asyncio.Queue[tuple[str, dict] | None] = asyncio.Queue()
+
+        async def emit(event: str, data: dict) -> None:
+            await queue.put((event, data))
+
+        async def run_search() -> None:
+            try:
+                session_error = _validate_search_session(payload, request, chat_session_store)
+                if session_error:
+                    await emit("error", session_error.model_dump(mode="json"))
+                    return
+
+                await emit("status", {"status": "accepted", "query": payload.query, "top_k": payload.top_k})
+                result = await orchestrator.search_with_events(
+                    query=payload.query,
+                    top_k=payload.top_k,
+                    emit=emit,
+                )
+                result.summary = finalize_summary_for_response(
+                    summary=result.summary,
+                    query=result.query,
+                    sources=result.sources,
+                )
+
+                for chunk in _summary_chunks(result.summary):
+                    await emit("token", {"text": chunk})
+                    await asyncio.sleep(0)
+
+                _persist_search_result(payload, chat_session_store, result)
+                await emit(
+                    "done",
+                    {
+                        "result": result.model_dump(mode="json"),
+                        "meta": SearchResponse(
+                            success=True,
+                            data=result,
+                            error=None,
+                            meta=response_meta(),
+                        ).meta.model_dump(mode="json"),
+                    },
+                )
+            except Exception as exc:
+                await emit(
+                    "error",
+                    {
+                        "code": "SEARCH_STREAM_FAILED",
+                        "message": "Search stream failed",
+                        "details": {"error": str(exc)},
+                    },
+                )
+            finally:
+                await queue.put(None)
+
+        task = asyncio.create_task(run_search())
+        try:
+            while True:
+                item = await queue.get()
+                if item is None:
+                    break
+                event, data = item
+                yield _sse(event, data)
+        finally:
+            if not task.done():
+                task.cancel()
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get("/keys/tavily", response_model=TavilyKeysResponse)

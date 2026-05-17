@@ -1,193 +1,193 @@
-# Web Agent: Tavily-first Search + SearXNG Fallback
+# Web Agent
 
-Du an gom 2 phan:
-- backend: FastAPI search pipeline
-- frontend: Next.js UI + Tavily key manager + Ops Dashboard + Prompt Manager
+Web Agent là ứng dụng tìm kiếm web kiểu chat, ưu tiên Tavily để lấy dữ liệu nhanh và chất lượng, fallback sang SearXNG khi Tavily không khả dụng hoặc kết quả chưa đủ tốt. Backend dùng FastAPI, frontend dùng Next.js, và câu trả lời cuối được tổng hợp bằng LLM OpenAI-compatible.
 
-## 1) Khoi tao moi truong (khuyen nghi)
+Repository: https://github.com/baolnq-ai/web-agent
 
-### Linux/macOS/Git Bash
+## Điểm nổi bật
+
+- Giao diện chat giống ChatGPT: lịch sử phiên ở sidebar trái, khung chat ở giữa, thanh nhập cố định phía dưới.
+- Popup `Cài đặt` gom các manager: Tavily Keys, Ops Dashboard, Prompt Manager.
+- Tavily-first retrieval, SearXNG fallback, query expansion, evidence merge, quality gate.
+- Stream trạng thái pipeline qua `POST /api/v1/search/stream` để UI hiển thị tiến trình xử lý.
+- Runtime LLM config: đổi base URL, model, temperature, max tokens, system prompt và target output length không cần restart.
+- Session/search history hỗ trợ local JSON hoặc PostgreSQL.
+- CI GitHub Actions chạy backend tests, frontend lint và frontend build.
+
+## Kiến trúc nhanh
+
+```text
+User
+  -> Next.js Chat UI
+  -> FastAPI /api/v1/search/stream
+  -> Query Analyst
+  -> Query Planner
+  -> Multi-query Retrieval
+       -> Tavily first
+       -> SearXNG fallback
+  -> Evidence Merge
+  -> Quality Gate
+  -> LLM Final Summary
+  -> SSE status/token/done
+  -> Session/Search Trace Store
+```
+
+Chi tiết hơn nằm ở [docs/architecture-pipeline.md](docs/architecture-pipeline.md).
+
+## Tech stack
+
+- Backend: FastAPI, Pydantic Settings, HTTPX, SQLAlchemy, Alembic, psycopg.
+- Frontend: Next.js 16, React 19, Tailwind CSS 4.
+- Search providers: Tavily, SearXNG.
+- LLM: endpoint OpenAI-compatible, ví dụ vLLM local/remote.
+- Local infra tùy chọn: PostgreSQL, pgAdmin, SearXNG Docker.
+- CI: GitHub Actions.
+
+## Setup nhanh
+
+### Git Bash/Linux/macOS
+
 ```bash
 cp .env.example .env
 ./setup.sh
 ```
 
 ### Windows PowerShell
+
 ```powershell
 Copy-Item .env.example .env -Force
-& "D:\Git\bin\bash.exe" -lc "cd /d/NTC_AI/Code/WebSearch_Tavily/web-agent && ./setup.sh"
+& "D:\Git\bin\bash.exe" -lc "cd /e/CODE/NTC_AI/Web_search_/web-agent && ./setup.sh"
 ```
 
-`setup.sh` se:
-- tao `.venv`
-- cai dependencies backend/frontend
-- dong bo `backend/.env` va `frontend/.env.local` neu chua co
-- cap nhat API proxy va CORS theo root `.env`
-- auto-start PostgreSQL/pgAdmin/SearXNG local neu bat trong root `.env`
-- auto-start backend/frontend neu `AUTO_START_APPS=true`
+`setup.sh` sẽ:
 
-Luu y Windows:
-- Trong PowerShell, lenh `bash` co the tro toi WSL (`C:\Windows\system32\bash.exe`), khac Git Bash.
-- Nen chay truc tiep trong cua so Git Bash `MINGW64`, hoac goi dung `D:\Git\bin\bash.exe` nhu vi du tren.
+- tạo `.venv`;
+- cài dependencies backend/frontend;
+- tạo hoặc đồng bộ `backend/.env` và `frontend/.env.local`;
+- cập nhật CORS, proxy, feature flags, RBAC;
+- tự tạo/start PostgreSQL, pgAdmin, SearXNG nếu bật trong root `.env`;
+- tự start backend/frontend nếu `AUTO_START_APPS=true`.
 
-## 2) Quy uoc env de dung lai o may moi
+## Chạy thủ công
 
-Chi commit file `*.env.example`, khong commit file env thuc te.
+Backend:
 
-Khi clone tren may moi:
-1. tao root env: `cp .env.example .env`
-2. tao backend env: `cp backend/.env.example backend/.env`
-3. tao frontend env: `cp frontend/.env.example frontend/.env.local`
-4. chay `./setup.sh`
-
-Chi tiet bien moi truong: xem `docs/env-reference.md`.
-
-## 3) Chay thu cong (neu khong dung auto-start)
-
-### Backend
-Linux/macOS/Git Bash:
 ```bash
 cd backend
-../.venv/bin/python -m uvicorn src.main:app --reload --host 0.0.0.0 --port 8011
+../.venv/Scripts/python.exe -m uvicorn src.main:app --reload --host 127.0.0.1 --port 8011
 ```
 
-Windows PowerShell:
-```powershell
-cd backend
-..\.venv\Scripts\python.exe -m uvicorn src.main:app --reload --host 0.0.0.0 --port 8011
-```
+Frontend:
 
-### Frontend
 ```bash
 cd frontend
 npm run dev -- --hostname 0.0.0.0 --port 3005
 ```
 
-## 4) Endpoint chinh
+URL mặc định:
+
+- Frontend: `http://localhost:3005`
+- Backend: `http://127.0.0.1:8011`
+- API prefix: `/api/v1`
+
+## Cấu hình quan trọng
+
+Root `.env`:
+
+- `BACKEND_HOST`, `BACKEND_PORT`: địa chỉ backend.
+- `FRONTEND_HOST`, `FRONTEND_PORT`: địa chỉ frontend.
+- `LLM_BASE_URL`: endpoint model OpenAI-compatible, ví dụ `http://192.168.1.x:8007/v1`.
+- `LLM_MODEL`: model ID.
+- `FEATURE_SESSION_HISTORY`: bật/tắt lịch sử chat.
+- `FEATURE_OPS_DASHBOARD`: bật/tắt Ops Dashboard.
+- `FEATURE_LLM_RUNTIME_CONFIG`: bật/tắt LLM runtime config.
+- `POSTGRES_AUTO_START`, `PGADMIN_AUTO_START`, `SEARXNG_AUTO_START`: tự start local infra bằng Docker.
+
+Backend `.env`:
+
+- `APP_LLM_BASE_URL`, `APP_LLM_MODEL`, `APP_LLM_TEMPERATURE`, `APP_LLM_MAX_TOKENS`.
+- `APP_SESSION_STORE_BACKEND=auto|local|postgres`.
+- `APP_DATABASE_URL`: PostgreSQL URL.
+- `APP_SEARXNG_BASE_URL`: SearXNG fallback URL.
+- `APP_QUERY_ANALYST_MODE=rule|llm`.
+
+Xem đầy đủ tại [docs/env-reference.md](docs/env-reference.md).
+
+## API chính
+
 - `GET /api/v1/health`
 - `POST /api/v1/search`
+- `POST /api/v1/search/stream`
+- `POST /api/v1/chat/sessions`
+- `GET /api/v1/chat/sessions`
+- `GET /api/v1/chat/sessions/{session_id}`
+- `DELETE /api/v1/chat/sessions/{session_id}`
 - `GET /api/v1/keys/tavily`
 - `POST /api/v1/keys/tavily`
 - `DELETE /api/v1/keys/tavily/{key_id}`
+- `GET /api/v1/keys/tavily/metrics`
 - `GET /api/v1/llm/config`
 - `PATCH /api/v1/llm/config`
+- `GET /api/v1/llm/health`
+- `POST /api/v1/llm/test`
+- `GET /api/v1/ops/audit/logs`
 - `POST /api/v1/ops/searxng/circuit/reset`
 
-## 5) Hanh vi pipeline
-1. Tavily-first retrieval.
-2. Fallback sang SearXNG khi Tavily fail/quality thap.
-3. Query Analyst co 2 mode:
-   - `rule` (mau co dinh)
-   - `llm` (agent phan tich dong, co fallback ve rule khi LLM loi)
-4. LLM tong hop cau tra loi cuoi.
-5. Prompt Manager dieu khien system prompt va `Target Output Length`.
-6. Output length hien tai uu tien LLM tu viet/rewrite trong ngan sach ky tu, khong uu tien cat thang sau khi sinh.
+## Frontend hiện tại
 
-## 6) Local infra hien tai
+- Sidebar trái: lịch sử chat/session, chat mới, cài đặt.
+- Main workspace: hội thoại tìm kiếm web, composer nhập câu hỏi, số `Nguồn` để chọn số nguồn web tối đa.
+- Popup `Cài đặt`: Tavily Keys, Ops Dashboard, Prompt Manager.
+- Màu giao diện: xanh + cam, theo hướng gọn và tươi.
+- UI dùng `/api/v1/search/stream` để hiển thị trạng thái xử lý và câu trả lời đang tạo.
 
-Neu root `.env` bat cac bien tuong ung, `setup.sh` se auto-start:
+## Testing
 
-- PostgreSQL: `websearch-pg`, port `5432`
-- pgAdmin: `websearch-pgadmin`, URL `http://localhost:5050`
-- SearXNG local: `websearch-searxng`, URL `http://127.0.0.1:8080`
+Backend:
 
-SearXNG local duoc dung de fallback khi Tavily disabled/het quota/loi/quality thap. Ly do: public SearXNG instances co the tra `403`, `429`, hoac loi DNS.
-
-## 7) UI roadmap gan nhat
-
-Trang hien tai dang co nhieu khu vuc quan tri nam chung voi search. Viec tiep theo trong plan la tach thanh sidebar tabs ben trai:
-
-- `Search`
-- `Tavily Keys`
-- `Ops Dashboard`
-- `Prompt Manager`
-
-Chi tiet xem `plans/plan-web-search-tavily-searxng-fastapi-nextjs.md`, muc `Update 2026-05-15`.
-
-## 8) Test va verify
-
-### Backend
-Linux/macOS/Git Bash:
-```bash
-../.venv/bin/python -m pytest backend/tests/test_api.py -q
-```
-
-Windows PowerShell:
-```powershell
-.\.venv\Scripts\python.exe -m pytest backend/tests/test_api.py -q
-```
-
-### Frontend
-```bash
-cd frontend
-npm run lint
-npm run build
-```
-
-## 9) Tai lieu bo sung
-- Huong dan cross-platform: `docs/setup-cross-platform.md`
-- Bang bien moi truong: `docs/env-reference.md`
-
-## 10) PostgreSQL (session/search history)
-
-He thong ho tro luu lich su chat va search trace vao PostgreSQL.
-
-Bien env can thiet (file `backend/.env`):
-- `APP_SESSION_STORE_BACKEND=postgres`
-- `APP_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/web_search?connect_timeout=5`
-
-Tao schema bang Alembic:
-
-```bash
-cd backend
-../.venv/Scripts/python.exe -m alembic upgrade head
-```
-
-Kiem tra backend dang chay mode Postgres:
-- Xem `logs/backend.dev.log` co dong:
-  - `session_store_backend= postgres`
-  - `store_type= PostgresChatSessionStore`
-
-Luu y:
-- Neu `APP_SESSION_STORE_BACKEND=postgres` thi PostgreSQL phai dang chay, neu khong backend se loi ket noi.
-
-## 11) Quy trinh push GitHub "clean"
-
-Truoc khi push:
-1. Chay test backend:
 ```bash
 cd backend
 ../.venv/Scripts/python.exe -m pytest -q
 ```
-2. Chay lint/build frontend:
+
+Frontend:
+
 ```bash
 cd frontend
 npm run lint
 npm run build
 ```
-3. Kiem tra env khong bi commit:
-```bash
-git status
-```
-Dam bao khong co `backend/.env`, `frontend/.env.local` trong staged files.
 
-## 12) CI/CD roadmap (de push production sau)
+## CI/CD
 
-Trang thai hien tai:
-- Chua them workflow CI/CD chinh thuc trong `.github/workflows`.
+Workflow hiện tại: [.github/workflows/ci.yml](.github/workflows/ci.yml)
 
-De xuat tiep theo:
-1. CI workflow (`ci.yml`):
-   - Trigger: `pull_request`, `push` vao `main`.
-   - Jobs:
-     - backend test (`pytest`)
-     - frontend lint + build (`npm run lint && npm run build`)
-2. Optional quality gates:
-   - coverage threshold backend.
-   - type-check frontend.
-3. CD workflow (`deploy.yml`) (phase sau):
-   - Trigger sau khi CI pass tren `main`.
-   - Deploy staging truoc production.
-4. Secret management:
-   - Su dung GitHub Secrets cho key/endpoint.
-   - Tuyet doi khong commit key that vao repo.
+CI chạy khi `push` hoặc `pull_request`:
+
+- Backend job:
+  - setup Python 3.12;
+  - install `backend[dev]`;
+  - chạy `pytest`.
+- Frontend job:
+  - setup Node;
+  - `npm ci`;
+  - `npm run lint`;
+  - `npm run build`.
+
+CD chưa bật vì chưa có target deploy chính thức. Khi có staging/production, nên thêm workflow deploy riêng, dùng GitHub Environments và GitHub Secrets cho endpoint/key.
+
+## Ghi chú vận hành
+
+- Không commit `.env`, `backend/.env`, `frontend/.env.local`.
+- Không commit key thật, logs runtime, hoặc dữ liệu session local.
+- Nếu model host ở máy khác, máy chạy backend phải ping/curl được `APP_LLM_BASE_URL`.
+- Nếu public SearXNG bị `403/429`, nên bật SearXNG local bằng Docker.
+- Nếu backend không start vì `APP_LLM_MAX_TOKENS=` rỗng, code hiện đã xử lý chuỗi rỗng thành `None`.
+
+## Tài liệu thêm
+
+- [docs/architecture-pipeline.md](docs/architecture-pipeline.md)
+- [docs/blog-brief.md](docs/blog-brief.md)
+- [docs/env-reference.md](docs/env-reference.md)
+- [docs/setup-cross-platform.md](docs/setup-cross-platform.md)
+- [docs/task-web-search-implementation.md](docs/task-web-search-implementation.md)

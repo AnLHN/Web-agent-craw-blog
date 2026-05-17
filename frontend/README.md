@@ -1,49 +1,36 @@
-# Web Search Frontend
+# Web Agent Frontend
 
-Next.js app cho giao dien search, session history, Tavily keys, Ops Dashboard va Prompt Manager.
+Next.js frontend cho Web Agent.
+
+## Vai trò
+
+- Hiển thị trải nghiệm chat tìm kiếm web.
+- Sidebar trái quản lý lịch sử chat/session.
+- Composer phía dưới gửi câu hỏi tới backend.
+- Popup `Cài đặt` gom các manager:
+  - Tavily Keys;
+  - Ops Dashboard;
+  - Prompt Manager.
+- Đọc SSE từ `/api/v1/search/stream` để hiển thị trạng thái xử lý và câu trả lời đang tạo.
 
 ## Setup
 
-Neu chua co env local:
-
 ```bash
 cp .env.example .env.local
-```
-
-Sau do cai dependency:
-
-```bash
 npm install
 ```
 
-## Run dev
+## Chạy dev
 
 ```bash
 npm run dev -- --hostname 0.0.0.0 --port 3005
 ```
 
-Frontend se goi API qua rewrite `/api/v1/*` -> backend host/port theo env:
-- `API_PROXY_HOST`
-- `API_PROXY_PORT`
-- `NEXT_PUBLIC_API_BASE`
+Frontend gọi API qua rewrite:
 
-## UI hien tai
-
-- Search workspace: nhap query, xem summary, sources, attempts/debug trace.
-- Tavily Key Manager: them/xoa/disable key.
-- Ops Dashboard: runtime LLM config, health/test, audit/ops controls.
-- Prompt Manager: chinh `summary_system_prompt` va `Target Output Length`.
-
-## Roadmap gan nhat
-
-Can tach cac khu vuc quan tri thanh sidebar tabs ben trai de tranh moi thu nam chung tren mot trang:
-
-- `Search`
-- `Tavily Keys`
-- `Ops Dashboard`
-- `Prompt Manager`
-
-Chi tiet xem `../plans/plan-web-search-tavily-searxng-fastapi-nextjs.md`, muc `Update 2026-05-15`.
+- `NEXT_PUBLIC_API_BASE=/api/v1`
+- `API_PROXY_HOST=127.0.0.1`
+- `API_PROXY_PORT=8011`
 
 ## Build checks
 
@@ -52,6 +39,19 @@ npm run lint
 npm run build
 ```
 
-## Note
+## UI hiện tại
 
-Gia tri env mac dinh cho local da duoc dinh nghia trong `.env.example`.
+- Palette xanh + cam.
+- Nhãn người dùng bằng tiếng Việt có dấu.
+- Ô `Nguồn` trong composer là số kết quả web tối đa dùng làm nguồn cho câu trả lời.
+- Replay session đã được gỡ khỏi UI để tránh gây rối cho người dùng thường.
+
+## File chính
+
+- `src/components/SearchWorkspace.tsx`
+- `src/components/SearchResultPanel.tsx`
+- `src/components/KeyManager.tsx`
+- `src/components/OpsDashboard.tsx`
+- `src/components/PromptManagerPopup.tsx`
+- `src/services/apiClient.ts`
+- `src/types/api.ts`

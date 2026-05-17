@@ -41,6 +41,36 @@ export type SearchData = {
   } | null;
 };
 
+export type SearchStreamStatusEvent = {
+  type: "status";
+  status: string;
+  [key: string]: unknown;
+};
+
+export type SearchStreamTokenEvent = {
+  type: "token";
+  text: string;
+};
+
+export type SearchStreamDoneEvent = {
+  type: "done";
+  result: SearchData;
+  meta?: ApiResponse<SearchData>["meta"];
+};
+
+export type SearchStreamErrorEvent = {
+  type: "error";
+  code: string;
+  message: string;
+  details?: Record<string, unknown> | null;
+};
+
+export type SearchStreamEvent =
+  | SearchStreamStatusEvent
+  | SearchStreamTokenEvent
+  | SearchStreamDoneEvent
+  | SearchStreamErrorEvent;
+
 export type ApiError = {
   code: string;
   message: string;

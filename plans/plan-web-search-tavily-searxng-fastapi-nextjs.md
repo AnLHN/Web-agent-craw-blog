@@ -1206,3 +1206,72 @@ Mỗi phase đều phải đi theo chu trình cố định sau, không được 
   - `./setup.sh`
 - Lệnh test nhanh:
   - `.\.venv\Scripts\python.exe -m pytest backend/tests/test_api.py -k "rewrites_to_length_budget or fallback_to_searxng" -q`
+
+### Update 2026-05-16: Phase S17 implemented
+- Frontend:
+  - `SearchWorkspace` đã chuyển sang app shell có sidebar tabs desktop và top tabs mobile.
+  - Các khu vực quản trị đã tách khỏi Search:
+    - `Search`
+    - `Sessions`
+    - `Tavily Keys`
+    - `Ops Dashboard`
+    - `Prompt Manager`
+  - `PromptManagerPanel` được thêm để quản lý prompt như một panel đầy đủ, không chỉ popup.
+  - Feature flags vẫn điều khiển tab Ops và Prompt runtime config.
+- Verify:
+  - `npm.cmd run lint`
+  - `npm.cmd run build`
+- Phase kế tiếp đề xuất:
+  - S18 - Streaming status + token output qua FastAPI SSE.
+
+### Update 2026-05-16: Phase S18 initial implementation
+- Backend:
+  - Thêm `POST /api/v1/search/stream` trả `text/event-stream`.
+  - Event hiện có:
+    - `status`: các mốc pipeline như `accepted`, `query_analysis_started`, `retrieval_started`, `evidence_merge_done`, `llm_summary_started`.
+    - `token`: chunk summary để frontend hiển thị partial answer.
+    - `done`: final `SearchResultData` + meta.
+    - `error`: envelope lỗi rõ ràng.
+  - `SearchOrchestrator` có `search_with_events(...)` để emit status mà vẫn giữ endpoint `/search` cũ.
+- Frontend:
+  - `searchWebStream(...)` đọc SSE qua `fetch` streaming với POST body.
+  - Search tab hiển thị `Live Status` và `Streaming Answer` trong lúc pipeline chạy.
+- Verify:
+  - `.\.venv\Scripts\python.exe -m pytest` -> 32 passed.
+  - `npm.cmd run lint`
+  - `npm.cmd run build`
+- Ghi chú:
+  - Token event hiện chunk từ final summary sau khi LLM hoàn tất. Bước nâng cấp tiếp theo là nối trực tiếp OpenAI-compatible `stream=true` trong `LlmSummaryService` nếu model server hỗ trợ ổn định.
+
+### Update 2026-05-16: ChatGPT-style UI adjustment
+- Frontend:
+  - Session/history đã được đưa ra sidebar trái sát mép màn hình, không còn là tab nội dung.
+  - Search workspace chuyển sang layout chat: hội thoại ở vùng trên, composer nhập web search cố định ở dưới.
+  - Sidebar giữ admin nav cho `Search`, `Tavily Keys`, `Ops Dashboard`, `Prompt Manager`.
+  - Chat result panel giảm cảm giác dashboard/card để giống luồng chat hơn.
+- Verify:
+  - `npm.cmd run lint`
+  - `npm.cmd run build`
+
+### Update 2026-05-16: Settings popup manager adjustment
+- Frontend:
+  - Sidebar khong con hien cac manager truc tiep.
+  - Nut `Settings` mo popup rieng tren man hinh.
+  - Popup Settings co navbar/tab noi bo cho `Tavily Keys`, `Ops Dashboard`, `Prompt Manager`.
+  - Chat/Search van la workspace mac dinh ben ngoai popup.
+- Verify:
+  - `npm.cmd run lint`
+  - `npm.cmd run build`
+
+### Update 2026-05-17: Documentation, blog brief, and GitHub readiness
+- Documentation:
+  - Viết lại `README.md` theo hướng GitHub-ready, có setup, API, pipeline, UI, testing, CI/CD.
+  - Thêm `docs/architecture-pipeline.md` mô tả kiến trúc và pipeline end-to-end.
+  - Thêm `docs/blog-brief.md` để lấy ý viết blog/series bài viết.
+  - Cập nhật `docs/env-reference.md` với ghi chú LLM remote, `APP_LLM_MAX_TOKENS` rỗng và SSE events.
+  - Cập nhật `docs/task-web-search-implementation.md` theo trạng thái UI/SSE hiện tại.
+- CI/CD:
+  - CI workflow hiện có chạy backend test và frontend lint/build.
+  - CD chưa bật vì chưa có target deploy chính thức; khi có staging/production sẽ thêm workflow deploy riêng bằng GitHub Environments + Secrets.
+- Git hygiene:
+  - Không stage runtime logs hoặc local session/audit JSON khi push.

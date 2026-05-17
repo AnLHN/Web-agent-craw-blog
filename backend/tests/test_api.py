@@ -8,6 +8,12 @@ from src.config.settings import Settings
 from src.main import create_app
 
 
+def test_empty_llm_max_tokens_env_value_uses_default() -> None:
+    settings = Settings(llm_max_tokens="")
+
+    assert settings.llm_max_tokens is None
+
+
 def build_client(tmp_path: Path, **overrides: object) -> TestClient:
     settings_kwargs: dict[str, object] = {
         "cors_origins": ["http://localhost:3000"],
@@ -662,6 +668,53 @@ def test_search_uses_local_vllm_summary_when_enabled(tmp_path: Path) -> None:
     assert llm_attempts[0]["status"] == "success"
     assert searx_mock.called
     assert llm_mock.called
+
+
+def test_search_stream_emits_status_token_and_done(tmp_path: Path) -> None:
+    client = build_client(
+        tmp_path,
+        llm_enabled=True,
+        llm_base_url="http://vllm.test/v1",
+        llm_model="gemma-local",
+    )
+
+    with respx.mock(assert_all_called=True) as router:
+        router.get("https://searx.test/search").mock(
+            return_value=Response(
+                200,
+                json={
+                    "results": [
+                        {
+                            "title": "Alpha",
+                            "url": "https://example.com/a",
+                            "content": "Alpha content",
+                        },
+                        {
+                            "title": "Beta",
+                            "url": "https://news.example.org/b",
+                            "content": "Beta content",
+                        },
+                    ]
+                },
+            )
+        )
+        router.post("http://vllm.test/v1/chat/completions").mock(
+            return_value=Response(
+                200,
+                json={"choices": [{"message": {"content": "Tom tat tu stream"}, "finish_reason": "stop"}]},
+            )
+        )
+
+        with client.stream("POST", "/api/v1/search/stream", json={"query": "stream me", "top_k": 5}) as response:
+            body = response.read().decode("utf-8")
+
+    assert response.status_code == 200
+    assert "text/event-stream" in response.headers["content-type"]
+    assert "event: status" in body
+    assert "event: token" in body
+    assert "Tom tat tu stream" in body
+    assert "event: done" in body
+    assert '"provider_used"' in body
 
 
 def test_llm_summary_rewrites_to_length_budget_instead_of_cutting(tmp_path: Path) -> None:

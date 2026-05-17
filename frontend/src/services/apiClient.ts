@@ -7,6 +7,7 @@ import {
   LlmRuntimeConfigData,
   LlmTestData,
   SearchData,
+  SearchStreamEvent,
   TavilyKeyMetricsData,
   TavilyKeysData,
 } from "@/types/api";
@@ -49,6 +50,112 @@ export async function searchWeb(
   return parseJson<ApiResponse<SearchData>>(response);
 }
 
+function parseSseBlock(block: string): { event: string; data: unknown } | null {
+  const lines = block.split(/\r?\n/);
+  let event = "message";
+  const dataLines: string[] = [];
+  for (const line of lines) {
+    if (line.startsWith("event:")) {
+      event = line.slice("event:".length).trim();
+    }
+    if (line.startsWith("data:")) {
+      dataLines.push(line.slice("data:".length).trimStart());
+    }
+  }
+  if (dataLines.length === 0) {
+    return null;
+  }
+  return { event, data: JSON.parse(dataLines.join("\n")) as unknown };
+}
+
+function toSearchStreamEvent(event: string, data: unknown): SearchStreamEvent | null {
+  if (!data || typeof data !== "object") {
+    return null;
+  }
+  const payload = data as Record<string, unknown>;
+  if (event === "status") {
+    return { type: "status", ...payload, status: String(payload.status || "unknown") };
+  }
+  if (event === "token") {
+    return { type: "token", text: String(payload.text || "") };
+  }
+  if (event === "done") {
+    return { type: "done", result: payload.result as SearchData, meta: payload.meta as ApiResponse<SearchData>["meta"] };
+  }
+  if (event === "error") {
+    return {
+      type: "error",
+      code: String(payload.code || "STREAM_ERROR"),
+      message: String(payload.message || "Search stream failed"),
+      details: (payload.details as Record<string, unknown> | null | undefined) ?? null,
+    };
+  }
+  return null;
+}
+
+export async function searchWebStream(
+  query: string,
+  topK = 5,
+  sessionId: string | null = null,
+  onEvent: (event: SearchStreamEvent) => void,
+): Promise<void> {
+  const body: Record<string, unknown> = { query, top_k: topK };
+  if (sessionId) {
+    body.session_id = sessionId;
+  }
+
+  const response = await fetch(`${API_BASE}/search/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+
+  if (!response.ok || !response.body) {
+    onEvent({
+      type: "error",
+      code: "STREAM_HTTP_ERROR",
+      message: `Search stream failed with HTTP ${response.status}`,
+      details: null,
+    });
+    return;
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) {
+      break;
+    }
+    buffer += decoder.decode(value, { stream: true });
+    const blocks = buffer.split(/\r?\n\r?\n/);
+    buffer = blocks.pop() || "";
+    for (const block of blocks) {
+      const parsed = parseSseBlock(block);
+      if (!parsed) {
+        continue;
+      }
+      const streamEvent = toSearchStreamEvent(parsed.event, parsed.data);
+      if (streamEvent) {
+        onEvent(streamEvent);
+      }
+    }
+  }
+
+  if (buffer.trim()) {
+    const parsed = parseSseBlock(buffer);
+    if (parsed) {
+      const streamEvent = toSearchStreamEvent(parsed.event, parsed.data);
+      if (streamEvent) {
+        onEvent(streamEvent);
+      }
+    }
+  }
+}
+
 export async function createChatSession(
   title?: string,
 ): Promise<ApiResponse<ChatSessionData>> {
@@ -77,16 +184,6 @@ export async function getChatSession(
 ): Promise<ApiResponse<ChatSessionData>> {
   const response = await fetch(`${API_BASE}/chat/sessions/${sessionId}`, {
     method: "GET",
-    cache: "no-store",
-  });
-  return parseJson<ApiResponse<ChatSessionData>>(response);
-}
-
-export async function replayChatSession(
-  sessionId: string,
-): Promise<ApiResponse<ChatSessionData>> {
-  const response = await fetch(`${API_BASE}/chat/sessions/${sessionId}/replay`, {
-    method: "POST",
     cache: "no-store",
   });
   return parseJson<ApiResponse<ChatSessionData>>(response);

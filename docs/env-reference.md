@@ -1,8 +1,8 @@
-# Environment Reference
+# Tham chiếu biến môi trường
 
 ## Root `.env`
 
-Duoc dung boi `setup.sh` de dong bo backend/frontend.
+Được dùng bởi `setup.sh` để đồng bộ backend/frontend.
 
 - `BACKEND_HOST`: host backend runtime, vd `127.0.0.1`
 - `BACKEND_PORT`: port backend, vd `8011`
@@ -12,9 +12,10 @@ Duoc dung boi `setup.sh` de dong bo backend/frontend.
 - `PUBLIC_BACKEND_HOST`: host backend de frontend/reverse-proxy su dung
 - `AUTO_START_APPS`: `true|false` auto start app sau setup
 - `LLM_MODEL`: model id cho backend
-- `LLM_BASE_URL`: optional override cho endpoint OpenAI-compatible
-	- Day la cho chinh de doi IP/host model khi model nam o may khac.
-	- Vi du: `http://192.168.2.74:8007/v1`
+- `LLM_BASE_URL`: optional override cho endpoint OpenAI-compatible.
+	- Đây là chỗ chính để đổi IP/host model khi model nằm ở máy khác.
+	- Ví dụ: `http://192.168.1.74:8007/v1`.
+	- Máy chạy backend phải truy cập được `LLM_BASE_URL`, kiểm tra nhanh bằng `curl http://<host>:8007/v1/models`.
 - `FEATURE_SESSION_HISTORY`: bat/tat UI + API session/history
 - `FEATURE_OPS_DASHBOARD`: bat/tat UI + API ops dashboard
 - `FEATURE_LLM_RUNTIME_CONFIG`: bat/tat API llm runtime config/health/test
@@ -68,11 +69,11 @@ Tien to `APP_`.
 - `APP_FEATURE_LLM_RUNTIME_CONFIG`
 - `APP_LLM_ENABLED`
 - `APP_LLM_BASE_URL`
-	- Backend doc bien nay tu `backend/.env`.
-	- Neu model host remote, sua gia tri nay hoac sua root `LLM_BASE_URL` roi chay lai setup.
+	- Backend đọc biến này từ `backend/.env`.
+	- Nếu model host remote, sửa giá trị này hoặc sửa root `LLM_BASE_URL` rồi chạy lại setup.
 - `APP_LLM_MODEL`
 - `APP_LLM_TEMPERATURE`
-- `APP_LLM_MAX_TOKENS` (optional)
+- `APP_LLM_MAX_TOKENS` (optional). Có thể để trống; backend sẽ hiểu là `None`.
 - `APP_LLM_SUMMARY_MAX_CHARS`: fallback default cho target output length neu runtime config chua co
 - `APP_LLM_SUMMARY_SYSTEM_PROMPT`: fallback default system prompt neu runtime config chua co
 - `APP_QUERY_ANALYST_MODE`: `rule` hoac `llm`
@@ -93,9 +94,9 @@ Endpoint:
 File store mac dinh:
 - `backend/config/llm_runtime.json`
 
-Truong quan trong:
+Trường quan trọng:
 - `summary_system_prompt`: system prompt cho final summarizer.
-- `summary_max_chars`: target output length. Hien tai backend uu tien prompt/rewrite de LLM tu viet gon trong ngan sach nay, khong uu tien cat thang output sau khi sinh.
+- `summary_max_chars`: target output length. Backend ưu tiên prompt/rewrite để LLM tự viết gọn trong ngân sách này, không ưu tiên cắt thẳng output sau khi sinh.
 
 ## `frontend/.env.local`
 
@@ -107,3 +108,19 @@ Truong quan trong:
 - `NEXT_PUBLIC_FEATURE_LLM_RUNTIME_CONFIG`
 - `NEXT_PUBLIC_OPS_ROLE`
 - `NEXT_PUBLIC_OPS_ADMIN_TOKEN`
+
+## Feature flags UI hiện tại
+
+- `NEXT_PUBLIC_FEATURE_SESSION_HISTORY=true`: hiển thị sidebar lịch sử chat/session.
+- `NEXT_PUBLIC_FEATURE_OPS_DASHBOARD=true`: hiển thị tab Ops Dashboard trong popup Cài đặt.
+- `NEXT_PUBLIC_FEATURE_LLM_RUNTIME_CONFIG=true`: hiển thị Prompt Manager và LLM runtime config.
+
+## Endpoint streaming
+
+Frontend dùng `POST /api/v1/search/stream` qua `NEXT_PUBLIC_API_BASE`.
+
+Event SSE:
+- `status`: trạng thái pipeline.
+- `token`: chunk câu trả lời.
+- `done`: final `SearchResultData`.
+- `error`: lỗi có `code`, `message`, `details`.

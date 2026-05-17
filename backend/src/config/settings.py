@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import List, Optional
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
@@ -73,6 +73,13 @@ class Settings(BaseSettings):
     subquery_timeout_seconds: float = 2.2
     quality_gate_min_coverage_sources: int = 2
     quality_gate_max_extra_rounds: int = 1
+
+    @field_validator("llm_max_tokens", mode="before")
+    @classmethod
+    def empty_llm_max_tokens_uses_default(cls, value: object) -> object:
+        if value == "":
+            return None
+        return value
 
 
 @lru_cache

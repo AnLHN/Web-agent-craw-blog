@@ -118,11 +118,14 @@
   - meta
 
 ## Tinh trang hien tai
-- Luong SearXNG fallback hoat dong va da test tu dong.
-- Luong Tavily-first da san sang, can ban them key tren frontend de kich hoat va test live.
-- Da bo sung CI/CD co ban: backend tests + frontend lint/build qua GitHub Actions.
-- Da bo sung root .gitignore va .env.example cho backend/frontend.
-- Da bao phu schema loi cho ca truong hop 404 route not found.
+- Luồng SearXNG fallback hoạt động và đã test tự động.
+- Luồng Tavily-first đã sẵn sàng, thêm key trong popup `Cài đặt` -> `Tavily Keys` để kích hoạt live.
+- Đã bổ sung CI cơ bản: backend tests + frontend lint/build qua GitHub Actions.
+- Đã bổ sung root `.gitignore` và `.env.example` cho backend/frontend.
+- Đã bao phủ schema lỗi cho cả trường hợp 404 route not found.
+- Frontend hiện là chat workspace: sidebar lịch sử, composer phía dưới, popup Cài đặt cho các manager.
+- Đã có SSE endpoint `POST /api/v1/search/stream` để stream trạng thái pipeline và final answer chunks.
+- Replay session vẫn còn ở backend cho debug/ops nhưng đã gỡ khỏi frontend để UI người dùng gọn hơn.
 
 ## Update 2026-05-15
 
@@ -150,15 +153,10 @@
   - Neu port van LISTEN voi PID ao, dung PowerShell Admin `Restart-Service WinNat -Force`.
 
 ### Viec tiep theo uu tien
-1. Tach UI thanh sidebar tabs ben trai:
-   - `Search`
-   - `Tavily Keys`
-   - `Ops Dashboard`
-   - `Prompt Manager`
-2. Chuyen Prompt Manager tu popup thanh tab/panel rieng, co the giu quick popup neu can.
-3. Sau do moi lam SSE streaming:
-   - `POST /api/v1/search/stream`
-   - stream status pipeline + token LLM realtime qua FastAPI.
+1. Nâng cấp `token` SSE từ chunk final summary sang upstream LLM `stream=true` nếu model server hỗ trợ ổn định.
+2. Chuẩn hóa CD khi có target deploy staging/production.
+3. Tách prompt registry/versioning nếu cần quản trị nhiều prompt version.
+4. Bổ sung blog/demo assets dựa trên `docs/blog-brief.md`.
 
 ### File nen doc khi tiep tuc
 - `plans/plan-web-search-tavily-searxng-fastapi-nextjs.md`

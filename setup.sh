@@ -597,7 +597,7 @@ build_cors_origins_json() {
 
 python_meets_requirement() {
   local py_bin="$1"
-  "$py_bin" - <<PY
+  "$py_bin" - <<PY 2>/dev/null
 import sys
 ok = (sys.version_info.major, sys.version_info.minor) >= (${PYTHON_MIN_MAJOR}, ${PYTHON_MIN_MINOR})
 raise SystemExit(0 if ok else 1)
@@ -893,6 +893,11 @@ open_command_in_terminal() {
 
   if has_cmd konsole; then
     konsole --new-tab -p tabtitle="$title" -e bash -lc "$command; exec bash" >/dev/null 2>&1 &
+    return 0
+  fi
+
+  if has_cmd mintty; then
+    mintty -t "$title" bash -lc "$command; exec bash" >/dev/null 2>&1 &
     return 0
   fi
 
