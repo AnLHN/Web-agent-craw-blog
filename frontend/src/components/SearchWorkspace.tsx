@@ -5,7 +5,6 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   addTavilyKey,
   createChatSession,
-  clearChatSessions,
   deleteChatSession,
   deleteTavilyKey,
   fetchTavilyKeys,
@@ -28,6 +27,31 @@ type NavItem = {
   label: string;
   shortLabel: string;
 };
+
+function isSearchData(value: unknown): value is SearchData {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as Partial<SearchData>;
+  return (
+    typeof candidate.query === "string" &&
+    typeof candidate.provider_used === "string" &&
+    typeof candidate.summary === "string" &&
+    typeof candidate.confidence === "number" &&
+    Array.isArray(candidate.sources) &&
+    Array.isArray(candidate.attempts)
+  );
+}
+
+function restoreLatestSearchResult(session: ChatSession): SearchData | null {
+  const latestAssistantMessage = [...session.messages]
+    .reverse()
+    .find((message) => message.role === "assistant" && message.metadata?.search_result);
+
+  const searchResult = latestAssistantMessage?.metadata?.search_result;
+  return isSearchData(searchResult) ? searchResult : null;
+}
 
 export function SearchWorkspace() {
   const featureSessionHistory =
@@ -64,6 +88,16 @@ export function SearchWorkspace() {
     }
     return `${currentSession.title} (${currentSession.message_count} msgs)`;
   }, [currentSession]);
+
+  function resetChatDraftAndResult() {
+    setQuery("");
+    setResult(null);
+    setLastSubmittedQuery("");
+    setSearchError(null);
+    setIsSearching(false);
+    setStreamStatuses([]);
+    setStreamedAnswer("");
+  }
 
   async function loadKeys() {
     setIsLoadingKeys(true);
@@ -116,7 +150,15 @@ export function SearchWorkspace() {
         setSessionError(response.error?.message || "Khong the tai session.");
         return;
       }
-      setCurrentSession(response.data.session);
+      const session = response.data.session;
+      const restoredResult = restoreLatestSearchResult(session);
+
+      setCurrentSession(session);
+      setResult(restoredResult);
+      setLastSubmittedQuery(restoredResult?.query || "");
+      setSearchError(null);
+      setStreamStatuses([]);
+      setStreamedAnswer("");
       setSessionError(null);
     } catch {
       setSessionError("Khong ket noi duoc backend khi tai session.");
@@ -132,6 +174,7 @@ export function SearchWorkspace() {
         return;
       }
       const session = response.data.session;
+      resetChatDraftAndResult();
       setCurrentSessionId(session.id);
       setCurrentSession(session);
       await loadSessionHistory();
@@ -180,30 +223,11 @@ export function SearchWorkspace() {
         } else {
           setCurrentSessionId(null);
           setCurrentSession(null);
-          setResult(null);
-          setLastSubmittedQuery("");
+          resetChatDraftAndResult();
         }
       }
     } catch {
       setSessionError("Khong ket noi duoc backend khi xoa session.");
-    }
-  }
-
-  async function handleClearSessions() {
-    try {
-      const response = await clearChatSessions();
-      if (!response.success || !response.data) {
-        setSessionError(response.error?.message || "Khong xoa duoc lich su session.");
-        return;
-      }
-      setSessions([]);
-      setCurrentSessionId(null);
-      setCurrentSession(null);
-      setResult(null);
-      setLastSubmittedQuery("");
-      setSessionError(null);
-    } catch {
-      setSessionError("Khong ket noi duoc backend khi xoa lich su.");
     }
   }
 
@@ -351,10 +375,11 @@ export function SearchWorkspace() {
                 >
                   <button
                     type="button"
-                    onClick={() => {
-                      setCurrentSessionId(session.id);
-                      void loadSessionDetail(session.id);
-                    }}
+                  onClick={() => {
+                    resetChatDraftAndResult();
+                    setCurrentSessionId(session.id);
+                    void loadSessionDetail(session.id);
+                  }}
                     className="w-full px-2 py-2 text-left"
                   >
                     <p className="line-clamp-1 text-sm font-medium">{session.title}</p>
@@ -391,13 +416,6 @@ export function SearchWorkspace() {
             className="w-full rounded-xl bg-orange-300 px-3 py-2 text-left text-sm font-semibold text-blue-950 shadow-sm hover:bg-orange-200"
           >
             Cài đặt
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleClearSessions()}
-            className="mt-3 w-full rounded-xl border border-white/10 px-3 py-2 text-left text-xs text-blue-100/60 hover:bg-white/10"
-          >
-            Xóa lịch sử
           </button>
         </div>
       </aside>

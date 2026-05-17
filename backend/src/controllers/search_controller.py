@@ -84,6 +84,7 @@ def _validate_search_session(payload: SearchRequest, request: Request, chat_sess
 
 
 def _persist_search_result(payload: SearchRequest, chat_session_store, result) -> None:
+    search_result = result.model_dump(mode="json")
     if payload.session_id:
         chat_session_store.add_message(
             session_id=payload.session_id,
@@ -100,6 +101,7 @@ def _persist_search_result(payload: SearchRequest, chat_session_store, result) -
                 "confidence": result.confidence,
                 "source_count": len(result.sources),
                 "attempt_count": len(result.attempts),
+                "search_result": search_result,
             },
         )
     chat_session_store.save_search_run(
@@ -108,9 +110,9 @@ def _persist_search_result(payload: SearchRequest, chat_session_store, result) -
         provider_used=result.provider_used,
         summary=result.summary,
         confidence=result.confidence,
-        query_analysis=(result.query_analysis.model_dump() if result.query_analysis else None),
-        attempts=[item.model_dump() for item in result.attempts],
-        sources=[item.model_dump() for item in result.sources],
+        query_analysis=search_result.get("query_analysis"),
+        attempts=search_result["attempts"],
+        sources=search_result["sources"],
         debug_trace={
             "attempt_count": len(result.attempts),
             "source_count": len(result.sources),

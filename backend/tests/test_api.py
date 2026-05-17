@@ -128,6 +128,10 @@ def test_search_with_session_id_persists_user_and_assistant_messages(tmp_path: P
     assert session["messages"][0]["role"] == "user"
     assert session["messages"][1]["role"] == "assistant"
     assert session["messages"][1]["metadata"]["provider_used"] in {"searxng_fallback", "tavily_low_quality", "tavily"}
+    restored_result = session["messages"][1]["metadata"]["search_result"]
+    assert restored_result["query"] == "latest ai news"
+    assert len(restored_result["sources"]) == 2
+    assert len(restored_result["attempts"]) >= 1
 
 
 def test_tavily_key_update_reset_and_metrics(tmp_path: Path) -> None:
