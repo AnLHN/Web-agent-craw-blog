@@ -95,6 +95,39 @@ Các biến backend dùng prefix `APP_`.
 - `APP_TAVILY_MAX_COOLDOWN_SECONDS`
 - `APP_FORCE_SEARXNG_TEST_MODE`
 
+## Tavily API key
+
+Tavily key không nằm trong `.env.example`. Người dùng lấy key từ Tavily dashboard rồi thêm qua UI hoặc API để tránh commit secret vào repo.
+
+Nguồn lấy key:
+
+- Tavily dashboard: `https://tavily.com/`
+- Tavily API keys: `https://tavily.com/api-keys`
+- Tavily docs: `https://docs.tavily.com/documentation/api-reference/introduction`
+
+Thêm key qua UI:
+
+1. Mở `http://localhost:3005`.
+2. Vào `Cài đặt`.
+3. Mở `Tavily Keys`.
+4. Dán key và lưu.
+
+Thêm key qua API:
+
+```bash
+curl -X POST http://127.0.0.1:8011/api/v1/keys/tavily \
+  -H "Content-Type: application/json" \
+  -d '{"api_key":"tvly-YOUR_API_KEY","label":"Default key"}'
+```
+
+Key được lưu local tại:
+
+```text
+backend/config/tavily_keys.json
+```
+
+Không commit file này nếu chứa key thật.
+
 ### Local stores
 
 - `APP_TAVILY_KEY_STORE_PATH`

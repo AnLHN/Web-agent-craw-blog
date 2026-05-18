@@ -18,6 +18,14 @@ Thư mục này chứa tài liệu vận hành và phát triển cho Web Agent. 
 - `backend/config/`: local state như Tavily keys, sessions, runtime LLM config, audit logs.
 - `.github/workflows/ci.yml`: workflow CI.
 
+## Tavily key
+
+Sau khi setup xong, người dùng cần thêm Tavily API key để dùng provider web search chính.
+
+- Lấy key tại `https://tavily.com/api-keys`.
+- Thêm key trong UI: `Cài đặt -> Tavily Keys`.
+- Không commit `backend/config/tavily_keys.json` nếu chứa key thật.
+
 ## Các lệnh hay dùng
 
 Linux/macOS/Git Bash:

@@ -112,6 +112,33 @@ URL mặc định:
 - Backend: `http://127.0.0.1:8011`
 - API prefix: `/api/v1`
 
+## Cấu hình Tavily key
+
+Web Agent cần Tavily API key để dùng provider tìm kiếm chính. Nếu chưa có key, hệ thống vẫn có thể fallback sang SearXNG khi được cấu hình, nhưng chất lượng và độ ổn định thường sẽ thấp hơn Tavily.
+
+Cách lấy key:
+
+1. Truy cập Tavily dashboard: `https://tavily.com/` hoặc trang API keys `https://tavily.com/api-keys`.
+2. Đăng nhập/đăng ký tài khoản Tavily.
+3. Tạo hoặc copy API key trong dashboard. Tavily docs mô tả API dùng key ở header `Authorization: Bearer tvly-YOUR_API_KEY`: https://docs.tavily.com/documentation/api-reference/introduction
+
+Cách thêm key vào Web Agent:
+
+1. Chạy app và mở `http://localhost:3005`.
+2. Bấm `Cài đặt`.
+3. Mở phần `Tavily Keys`.
+4. Dán API key, đặt label nếu muốn, rồi lưu.
+
+Key được lưu local trong `backend/config/tavily_keys.json`. File này không nên commit lên GitHub.
+
+Nếu muốn thêm bằng API:
+
+```bash
+curl -X POST http://127.0.0.1:8011/api/v1/keys/tavily \
+  -H "Content-Type: application/json" \
+  -d '{"api_key":"tvly-YOUR_API_KEY","label":"Default key"}'
+```
+
 ## Dọn Docker local
 
 Nếu bật PostgreSQL, pgAdmin hoặc SearXNG bằng Docker, có thể dọn container/image bằng:
@@ -211,5 +238,6 @@ Chi tiết xem [docs/ci-cd.md](docs/ci-cd.md).
 
 - Không commit `.env`, `backend/.env`, `frontend/.env.local`, logs hoặc key thật.
 - Nếu model chạy trên máy khác, máy chạy backend phải truy cập được `LLM_BASE_URL`.
+- Tavily key thật chỉ nhập qua UI/API local, không ghi vào `.env.example` và không commit lên GitHub.
 - Nếu public SearXNG bị `403/429`, nên bật SearXNG local bằng Docker.
 - Nếu chạy PowerShell bị chặn script, dùng `-ExecutionPolicy Bypass` như ví dụ phía trên.

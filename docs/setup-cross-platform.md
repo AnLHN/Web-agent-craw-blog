@@ -77,6 +77,39 @@ Mặc định:
 - Backend: `http://127.0.0.1:8011`
 - Frontend: `http://localhost:3005`
 
+## Thêm Tavily API key
+
+Tavily là provider tìm kiếm chính của Web Agent. Người dùng cần tự tạo Tavily API key trước khi search bằng Tavily.
+
+Cách lấy key:
+
+1. Vào Tavily dashboard: `https://tavily.com/`.
+2. Mở trang API keys: `https://tavily.com/api-keys`.
+3. Tạo hoặc copy key. Theo Tavily docs, key được dùng với header `Authorization: Bearer tvly-YOUR_API_KEY`.
+
+Cách thêm key vào app:
+
+1. Mở frontend `http://localhost:3005`.
+2. Bấm `Cài đặt`.
+3. Vào `Tavily Keys`.
+4. Dán key và lưu.
+
+Key được lưu tại:
+
+```text
+backend/config/tavily_keys.json
+```
+
+Không commit file này nếu chứa key thật.
+
+Thêm key bằng API nếu cần:
+
+```bash
+curl -X POST http://127.0.0.1:8011/api/v1/keys/tavily \
+  -H "Content-Type: application/json" \
+  -d '{"api_key":"tvly-YOUR_API_KEY","label":"Default key"}'
+```
+
 ## Dừng app
 
 Linux/macOS/Git Bash:
