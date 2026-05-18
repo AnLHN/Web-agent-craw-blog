@@ -1,120 +1,187 @@
-# Setup Cross-platform
+﻿# Setup đa nền tảng
 
-Tai lieu nay mo ta cach khoi tao project tren Linux, macOS, va Windows.
+Tài liệu này hướng dẫn chạy Web Agent trên Linux, macOS, Git Bash và Windows PowerShell.
 
-## 1) Yeu cau
+## Yêu cầu
 
-- Python >= 3.12
-- Node.js >= 20
-- npm
-- Bash shell
+- Python 3.12 trở lên.
+- Node.js 20 trở lên, khuyến nghị Node 24 để khớp CI.
+- npm.
+- Docker Desktop nếu muốn chạy PostgreSQL, pgAdmin hoặc SearXNG local.
+- Git Bash nếu chạy `.sh` trên Windows.
 
-## 2) Khoi tao env tu file mau
+## Script hiện có
 
-```bash
-cp .env.example .env
-cp backend/.env.example backend/.env
-cp frontend/.env.example frontend/.env.local
+| Mục đích | Linux/macOS/Git Bash | Windows PowerShell |
+| --- | --- | --- |
+| Setup lần đầu | `./setup.sh` | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1` |
+| Chạy app | `./run.sh` | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run.ps1` |
+| Dừng app | `./stop.sh` | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\stop.ps1` |
+| Xoá container/image Docker | `./delete.sh` | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\delete.ps1` |
+| Xoá container, giữ image | `./delete.sh --keep-images` | `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\delete.ps1 -KeepImages` |
+
+File `.ps1` là script PowerShell cho Windows. Nếu muốn gọi ngắn dạng `.\run.ps1`, mở PowerShell trong thư mục `web-agent` và chạy:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 ```
 
-Neu da co file env thi bo qua buoc nay.
+Lệnh này chỉ áp dụng cho cửa sổ PowerShell hiện tại.
 
-## 3) Chay setup script
+## Setup lần đầu
 
-### Linux/macOS/Git Bash
+Linux/macOS/Git Bash:
 
 ```bash
+cd web-agent
+cp .env.example .env
 ./setup.sh
 ```
 
-### Windows PowerShell
+Windows PowerShell:
 
 ```powershell
-& "D:\Git\bin\bash.exe" -lc "cd /d/NTC_AI/Code/WebSearch_Tavily/web-agent && ./setup.sh"
+cd web-agent
+Copy-Item .env.example .env -Force
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1
 ```
 
-`setup.sh` se:
-- setup `.venv`
-- cai dependency backend/frontend
-- cap nhat CORS/API proxy theo root `.env`
-- cap nhat feature flags + RBAC + ops env cho backend/frontend
-- tao cac file local state trong `backend/config` neu chua co
-- auto-start PostgreSQL, pgAdmin, SearXNG local neu bat trong root `.env`
-- co the auto-start app neu `AUTO_START_APPS=true`
+`setup` sẽ:
 
-Luu y Windows:
-- Neu chay trong Git Bash `MINGW64`, chi can `./setup.sh`.
-- Neu chay tu PowerShell, dung dung Git Bash binary. Lenh `bash` mac dinh co the tro toi WSL va gay khac moi truong/port bridge.
+- tạo `.venv` nếu chưa có;
+- cài dependencies backend;
+- cài dependencies frontend;
+- tạo `backend/.env` từ `backend/.env.example` nếu chưa có;
+- tạo `frontend/.env.local` nếu chưa có;
+- đồng bộ CORS, API proxy và feature flags;
+- tạo local config files trong `backend/config`;
+- tự start PostgreSQL, pgAdmin, SearXNG nếu bật trong root `.env`;
+- tự start backend/frontend nếu `AUTO_START_APPS=true`.
 
-## 4) Chay thu cong neu can
-
-### Backend
+## Chạy app
 
 Linux/macOS/Git Bash:
+
 ```bash
-cd backend
-../.venv/bin/python -m uvicorn src.main:app --reload --host 127.0.0.1 --port 8011
+./run.sh
 ```
 
 Windows PowerShell:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run.ps1
+```
+
+Mặc định:
+
+- Backend: `http://127.0.0.1:8011`
+- Frontend: `http://localhost:3005`
+
+## Dừng app
+
+Linux/macOS/Git Bash:
+
+```bash
+./stop.sh
+```
+
+Windows PowerShell:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\stop.ps1
+```
+
+Script dừng bằng PID file và dọn thêm process đang listen trên port backend/frontend.
+
+## Dọn Docker
+
+Linux/macOS/Git Bash:
+
+```bash
+./delete.sh
+```
+
+Windows PowerShell:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\delete.ps1
+```
+
+Mặc định `delete` xoá các container và image khai báo trong `.env`:
+
+- `POSTGRES_CONTAINER_NAME`, `POSTGRES_IMAGE`
+- `PGADMIN_CONTAINER_NAME`, `PGADMIN_IMAGE`
+- `SEARXNG_CONTAINER_NAME`, `SEARXNG_IMAGE`
+
+Giữ image, chỉ xoá container:
+
+```bash
+./delete.sh --keep-images
+```
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\delete.ps1 -KeepImages
+```
+
+## Chạy thủ công khi cần debug
+
+Backend trên Windows:
+
 ```powershell
 cd backend
 ..\.venv\Scripts\python.exe -m uvicorn src.main:app --reload --host 127.0.0.1 --port 8011
 ```
 
-### Frontend
+Backend trên Linux/macOS:
+
+```bash
+cd backend
+../.venv/bin/python -m uvicorn src.main:app --reload --host 127.0.0.1 --port 8011
+```
+
+Frontend:
 
 ```bash
 cd frontend
 npm run dev -- --hostname 0.0.0.0 --port 3005
 ```
 
-## 5) Xu ly loi thuong gap
+## Lỗi thường gặp
 
-### A) body parse error khi goi API bang Git Bash curl voi tieng Viet
+### PowerShell không cho chạy `.ps1`
 
-Dung PowerShell `Invoke-RestMethod` hoac dung `jq` + `--data-binary` de dam bao UTF-8.
+Dùng lệnh đầy đủ:
 
-### B) Khong co `frontend/.env.local`
-
-Chay:
-```bash
-cp frontend/.env.example frontend/.env.local
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run.ps1
 ```
 
-### C) nvm khong ton tai
+### Không tìm thấy npm trên Windows
 
-Neu Node da cai san va dat yeu cau thi setup van tiep tuc.
-Neu chua co Node, cai Node.js LTS truoc roi chay lai `./setup.sh`.
+Cài Node.js LTS hoặc đảm bảo npm nằm trong `PATH`. Script PowerShell cũng tự tìm npm trong các thư mục phổ biến của Node.js và nvm.
 
-### D) Port 8011 van LISTEN nhung PID khong kill duoc
+### Port 8011 hoặc 3005 bị chiếm
 
-Tren Windows, doi khi WinNAT/WSL bridge giu socket ao. Chay PowerShell Admin:
+Chạy:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\stop.ps1
+```
+
+Nếu vẫn kẹt port do WinNAT/WSL bridge, mở PowerShell Admin:
 
 ```powershell
 Restart-Service WinNat -Force
 ```
 
-Sau do kiem tra:
+### Public SearXNG bị 403/429
 
-```powershell
-Get-NetTCPConnection -LocalPort 8011 -State Listen |
-  Select-Object LocalAddress,LocalPort,State,OwningProcess
-```
-
-### E) Public SearXNG bi 403/429
-
-Khong nen phu thuoc public SearXNG instance de dev. Bat local SearXNG trong root `.env`:
+Nên bật SearXNG local trong `.env`:
 
 ```env
 SEARXNG_AUTO_START=true
 SEARXNG_CONTAINER_NAME=websearch-searxng
-SEARXNG_FORCE_RECREATE=true
 SEARXNG_PORT=8080
 ```
 
-Sau do chay lai:
-
-```bash
-./setup.sh
-```
+Sau đó chạy lại setup.

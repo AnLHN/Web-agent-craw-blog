@@ -1,39 +1,32 @@
-# Kiến trúc và pipeline Web Agent
+﻿# Kiến trúc và pipeline Web Agent
 
 Tài liệu này mô tả Web Agent đang làm gì, các thành phần chính và luồng xử lý end-to-end.
 
-## 1. Mục tiêu dự án
+## Mục tiêu dự án
 
-Web Agent là hệ thống web search dạng chat:
+Web Agent là hệ thống web search dạng chat. Người dùng nhập câu hỏi, hệ thống tìm kiếm nguồn web, đánh giá chất lượng nguồn và dùng LLM để tổng hợp câu trả lời cuối cùng.
 
-1. Người dùng nhập câu hỏi.
-2. Hệ thống phân tích và mở rộng truy vấn.
-3. Tavily được ưu tiên để lấy kết quả web.
-4. Nếu Tavily không có key, lỗi, rate limit hoặc kết quả chưa đạt chất lượng, hệ thống fallback sang SearXNG.
-5. Các nguồn được hợp nhất, lọc trùng và chấm chất lượng.
-6. LLM OpenAI-compatible tổng hợp câu trả lời cuối.
-7. UI hiển thị tiến trình qua SSE và lưu lịch sử chat/session.
+Mục tiêu chính:
 
-## 2. Thành phần ứng dụng
+- trả lời dựa trên nguồn web có thể kiểm chứng;
+- ưu tiên dữ liệu mới qua Tavily/SearXNG;
+- giữ trải nghiệm chat tự nhiên;
+- hỗ trợ lịch sử hội thoại trong cùng session;
+- cho phép quản trị prompt, model và runtime config mà không cần sửa code.
+
+## Thành phần ứng dụng
 
 ### Frontend
 
 Thư mục: `frontend/`
 
 - Next.js 16 + React 19.
-- Giao diện chat:
-  - sidebar lịch sử chat;
-  - workspace chat;
-  - composer tìm kiếm web;
-  - popup Cài đặt.
-- Services:
-  - `frontend/src/services/apiClient.ts`: gọi REST API và đọc SSE stream.
-- Components chính:
-  - `SearchWorkspace.tsx`: app shell, chat UI, settings modal.
-  - `SearchResultPanel.tsx`: bubble chat, sources, attempts, debug trace.
-  - `KeyManager.tsx`: quản lý Tavily keys.
-  - `OpsDashboard.tsx`: metrics, LLM health/test, audit logs.
-  - `PromptManagerPopup.tsx`: Prompt Manager panel.
+- Chat workspace, sidebar lịch sử, settings modal.
+- `SearchWorkspace.tsx`: shell chính của chat, submit query, streaming UI.
+- `SearchResultPanel.tsx`: hiển thị câu trả lời, sources, attempts, debug trace.
+- `PromptManagerPopup.tsx`: chỉnh prompt và target output length.
+- `OpsDashboard.tsx`: health/test LLM, metrics và audit logs.
+- `apiClient.ts`: gọi REST API và đọc SSE stream.
 
 ### Backend
 
@@ -44,20 +37,18 @@ Thư mục: `backend/`
   - `search_controller.py`
   - `chat_controller.py`
   - `llm_controller.py`
-- Orchestrator:
-  - `search_orchestrator.py`
-- Services:
+- Services chính:
+  - `context_query_rewriter_service.py`
   - `query_analyst_service.py`
   - `query_planner_service.py`
   - `tavily_service.py`
   - `searxng_service.py`
   - `evidence_merge_service.py`
   - `llm_summary_service.py`
-  - `query_cache.py`
-  - `key_store.py`
   - `llm_runtime_store.py`
   - `chat_session_store.py`
   - `postgres_chat_session_store.py`
+  - `query_cache.py`
 
 ### Local infra tùy chọn
 
@@ -65,40 +56,61 @@ Thư mục: `backend/`
 - pgAdmin: quản trị DB local.
 - SearXNG: fallback search local ổn định hơn public instances.
 
-## 3. Pipeline tìm kiếm
+## Pipeline xử lý
 
 ```text
 POST /api/v1/search hoặc /api/v1/search/stream
-  -> Validate session
+  -> Validate request/session
+  -> Load session context
+  -> Context Query Rewriter
   -> Query Analyst
   -> Query Planner
   -> Multi-query Retrieval
       -> Tavily first
-      -> SearXNG fallback nếu Tavily fail/quality thấp
+      -> SearXNG fallback nếu cần
   -> Evidence Merge
   -> Quality Gate
-  -> LLM Summary
+  -> LLM Final Summary
   -> Finalize summary
   -> Save chat messages + search run
   -> Return JSON hoặc stream SSE
 ```
 
-### Bước 1: Query Analyst
+## Context Query Rewriter
+
+File: `backend/src/services/context_query_rewriter_service.py`
+
+Nhiệm vụ:
+
+- đọc các tin nhắn trước trong cùng session;
+- hiểu câu hỏi nối tiếp kiểu “vậy người đứng đầu công ty là ai?”;
+- viết lại query thành câu hỏi đầy đủ hơn trước khi search;
+- không bắt người dùng phải nói rõ “dựa vào lịch sử”.
+
+Ví dụ:
+
+```text
+User trước: Cho tôi biết về Nhất Tiến Chung
+User sau: Vậy người đứng đầu công ty là ai?
+Query rewrite: Người đứng đầu Công ty TNHH Tin Học Viễn Thông Nhất Tiến Chung là ai?
+```
+
+## Query Analyst
 
 File: `backend/src/services/query_analyst_service.py`
 
 Nhiệm vụ:
 
-- chuẩn hóa câu hỏi;
+- chuẩn hoá câu hỏi;
 - nhận diện intent như `definition`, `architecture`, `comparison`, `general_exploration`;
 - sinh sub-query để tăng coverage.
 
 Mode:
 
 - `rule`: dùng rule/template nội bộ;
-- `llm`: gọi LLM để sinh sub-query, fallback về rule nếu LLM lỗi.
+- `llm`: gọi LLM để sinh sub-query, fallback về rule nếu lỗi.
 
-### Bước 2: Query Planner
+## Query Planner
 
 File: `backend/src/services/query_planner_service.py`
 
@@ -108,40 +120,38 @@ Nhiệm vụ:
 - chọn budget truy vấn;
 - ưu tiên sub-query quan trọng.
 
-### Bước 3: Retrieval
+## Retrieval
 
 File: `backend/src/services/search_orchestrator.py`
 
 Nhiệm vụ:
 
-- chạy nhiều sub-query song song có giới hạn;
-- dùng cache 2 lớp:
-  - cache query chính;
-  - cache sub-query;
+- chạy nhiều sub-query có giới hạn;
+- dùng cache cho query chính và sub-query;
 - gọi Tavily trước;
-- fallback SearXNG khi cần.
+- fallback sang SearXNG khi Tavily không đủ tốt.
 
-### Bước 4: Tavily-first
+## Tavily-first
 
 File: `backend/src/services/tavily_service.py`
 
-Tavily là provider ưu tiên vì API trả kết quả web trực tiếp và có metadata tốt. Key được quản lý qua `TavilyKeyStore`:
+Tavily là provider ưu tiên vì trả kết quả web trực tiếp và metadata tốt. Tavily key được quản lý qua `TavilyKeyStore`:
 
-- add/list/delete key;
-- mask key;
-- chọn key theo trạng thái;
+- thêm/list/xoá key;
+- mask key khi hiển thị;
+- chọn key khả dụng;
 - ghi success/failure;
-- cooldown khi rate limit/lỗi.
+- cooldown khi rate limit hoặc lỗi.
 
-### Bước 5: SearXNG fallback
+## SearXNG fallback
 
 File: `backend/src/services/searxng_service.py`
 
 Fallback được dùng khi:
 
 - không có Tavily key khả dụng;
-- Tavily trả lỗi/rate limit;
-- kết quả Tavily không đạt threshold;
+- Tavily lỗi/rate limit;
+- kết quả Tavily không đạt quality gate;
 - cần test fallback local.
 
 Hardening:
@@ -149,9 +159,9 @@ Hardening:
 - throttle QPS;
 - circuit breaker;
 - backup base URLs;
-- local SearXNG Docker khuyến nghị cho dev.
+- khuyến nghị self-host local cho dev.
 
-### Bước 6: Evidence Merge
+## Evidence Merge
 
 File: `backend/src/services/evidence_merge_service.py`
 
@@ -159,18 +169,19 @@ Nhiệm vụ:
 
 - hợp nhất source từ nhiều query;
 - lọc trùng URL;
-- giữ nguồn tốt nhất theo top-k/quality;
-- xuất số nguồn giữ/lọc để debug.
+- giữ nguồn tốt nhất theo score/top-k;
+- xuất metadata để debug.
 
-### Bước 7: Quality Gate
+## Quality Gate
 
 Quality gate quyết định có cần extra retrieval round hay không:
 
-- nếu coverage thấp;
-- nếu còn fallback queries;
-- nếu cấu hình cho phép extra round.
+- coverage thấp;
+- thiếu số lượng nguồn tối thiểu;
+- thiếu domain đa dạng;
+- còn fallback query có thể chạy.
 
-### Bước 8: LLM Summary
+## LLM Final Summary
 
 File: `backend/src/services/llm_summary_service.py`
 
@@ -178,40 +189,38 @@ Nhiệm vụ:
 
 - build prompt từ query + sources;
 - gọi `/chat/completions` OpenAI-compatible;
-- nếu output bị length stop, gọi continuation;
-- nếu output vượt target length, gọi rewrite compact;
+- dùng `max_tokens` theo chuẩn token của OpenAI-compatible API;
+- ưu tiên trả lời bằng tiếng Việt khi người dùng hỏi tiếng Việt;
+- dùng runtime prompt từ Prompt Manager;
 - fallback deterministic summary nếu LLM lỗi.
 
-Runtime config:
+Lưu ý quan trọng:
 
-- base URL;
-- model;
-- temperature;
-- max tokens;
-- system prompt;
-- target output length.
+- `max_tokens` là token budget, không phải ký tự.
+- `summary_max_tokens` là target độ dài phần tóm tắt cuối theo token.
+- Không nên cắt output bằng số ký tự nếu mục tiêu là kiểm soát theo token.
 
-### Bước 9: SSE streaming
+## SSE streaming
 
 Endpoint: `POST /api/v1/search/stream`
 
 Event:
 
-- `status`: trạng thái pipeline;
-- `token`: chunk summary để UI hiển thị partial answer;
-- `done`: final `SearchResultData`;
-- `error`: lỗi có envelope rõ ràng.
+- `status`: trạng thái pipeline.
+- `token`: chunk nội dung trả lời.
+- `done`: final `SearchResultData`.
+- `error`: lỗi có `code`, `message`, `details`.
 
-Ghi chú: token hiện là chunk từ final summary sau khi LLM hoàn tất. Bước tiếp theo có thể nối trực tiếp upstream `stream=true` nếu model server hỗ trợ ổn định.
+Frontend dùng các status này để hiển thị “đang rewrite context”, “đang search”, “đang tổng hợp bằng LLM” theo từng chat bubble.
 
-## 4. Data và session
+## Data và session
 
 Session store có 2 mode:
 
 - local JSON;
 - PostgreSQL.
 
-Các phiên chat lưu:
+Mỗi session có thể lưu:
 
 - title;
 - messages;
@@ -219,9 +228,10 @@ Các phiên chat lưu:
 - search runs;
 - attempts;
 - sources;
-- query analysis.
+- query analysis;
+- rewritten query.
 
-## 5. Feature flags
+## Feature flags
 
 - `FEATURE_SESSION_HISTORY`
 - `FEATURE_OPS_DASHBOARD`
@@ -229,21 +239,14 @@ Các phiên chat lưu:
 
 Backend dùng prefix `APP_`, frontend dùng `NEXT_PUBLIC_`.
 
-## 6. Observability
+## Observability
 
 Hệ thống có:
 
-- provider attempts trong mỗi response;
+- provider attempts trong response;
 - query analysis fields;
 - source count/attempt count;
 - audit logs cho thao tác nhạy cảm;
 - LLM health/test endpoint;
-- Tavily key metrics.
-
-## 7. Những lỗi đã hardening
-
-- `APP_LLM_MAX_TOKENS=` rỗng từng làm Pydantic crash; hiện đã parse thành `None`.
-- Frontend từng báo `ECONNREFUSED` khi backend crash; nguyên nhân đã được truy ngược về backend config.
-- Remote LLM host khác subnet sẽ timeout; cần kiểm tra `curl <base_url>/models` từ máy backend.
-- Public SearXNG dễ bị `403/429`; khuyến nghị self-host local.
-- Windows/Git Bash có thể giữ port qua process reload/WinNAT; `setup.sh` đã hardening cleanup, docs có hướng dẫn `Restart-Service WinNat -Force`.
+- Tavily key metrics;
+- logs backend/frontend trong `logs/` khi chạy script.

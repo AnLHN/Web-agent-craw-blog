@@ -30,6 +30,7 @@ OPS_ROLE="admin"
 OPS_ADMIN_TOKEN=""
 POSTGRES_AUTO_START="false"
 POSTGRES_CONTAINER_NAME="websearch-pg"
+POSTGRES_IMAGE="postgres:16"
 POSTGRES_FORCE_RECREATE="false"
 POSTGRES_PORT="5432"
 POSTGRES_DB="web_search"
@@ -37,11 +38,13 @@ POSTGRES_USER="postgres"
 POSTGRES_PASSWORD="postgres"
 PGADMIN_AUTO_START="false"
 PGADMIN_CONTAINER_NAME="websearch-pgadmin"
+PGADMIN_IMAGE="dpage/pgadmin4:8"
 PGADMIN_PORT="5050"
 PGADMIN_DEFAULT_EMAIL="admin@local.dev"
 PGADMIN_DEFAULT_PASSWORD="admin"
 SEARXNG_AUTO_START="false"
 SEARXNG_CONTAINER_NAME="websearch-searxng"
+SEARXNG_IMAGE="searxng/searxng:latest"
 SEARXNG_FORCE_RECREATE="false"
 SEARXNG_PORT="8080"
 
@@ -151,7 +154,7 @@ ensure_postgres_if_enabled() {
       -e "POSTGRES_USER=$POSTGRES_USER" \
       -e "POSTGRES_DB=$POSTGRES_DB" \
       -p "$POSTGRES_PORT:5432" \
-      -d postgres:16 >/dev/null
+      -d "$POSTGRES_IMAGE" >/dev/null
   fi
 
   # doi DB ready toi da 20s
@@ -198,7 +201,7 @@ ensure_pgadmin_if_enabled() {
       -e "PGADMIN_DEFAULT_PASSWORD=$PGADMIN_DEFAULT_PASSWORD" \
       -e "PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION=False" \
       -p "$PGADMIN_PORT:80" \
-      -d dpage/pgadmin4:8 >/dev/null
+      -d "$PGADMIN_IMAGE" >/dev/null
   fi
 }
 
@@ -263,7 +266,7 @@ EOF
       -e "INSTANCE_NAME=web-agent-searxng" \
       -v "$searxng_mount_source:/etc/searxng:ro" \
       -p "$SEARXNG_PORT:8080" \
-      -d searxng/searxng:latest >/dev/null
+      -d "$SEARXNG_IMAGE" >/dev/null
   fi
 
   local i
@@ -363,7 +366,9 @@ list_listeners_on_port_windows() {
       ps_cmd="pwsh"
     fi
     "$ps_cmd" -NoProfile -Command "\
-      @(Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | Where-Object { \$_ -and \$_ -ne 0 }) -join ','" 2>/dev/null || true
+      @(Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue | \
+        Select-Object -ExpandProperty OwningProcess -Unique | \
+        Where-Object { \$_ -and \$_ -ne 0 -and (Get-Process -Id \$_ -ErrorAction SilentlyContinue) }) -join ','" 2>/dev/null || true
   fi
 }
 
@@ -406,11 +411,39 @@ cleanup_existing_processes() {
     if has_cmd powershell || has_cmd pwsh; then
       local ps_script
       local ps_cmd="powershell"
+      local root_windows="$ROOT_DIR"
       if has_cmd pwsh; then
         ps_cmd="pwsh"
       fi
-      ps_script='Get-CimInstance Win32_Process | Where-Object { ($_.CommandLine -match "WebSearch_Tavily\\web-agent" -and $_.Name -match "python|node|npm|uvicorn") -or ($_.Name -eq "python.exe" -and $_.CommandLine -match "multiprocessing-fork" -and $_.CommandLine -match "spawn_main") } | ForEach-Object { try { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop } catch {} }'
-      "$ps_cmd" -NoProfile -Command "$ps_script" >/dev/null 2>&1 || true
+      if has_cmd cygpath; then
+        root_windows="$(cygpath -w "$ROOT_DIR")"
+      fi
+      ps_script='
+        $RootPath = $env:WEB_AGENT_ROOT_WINDOWS
+        $currentPid = $PID
+        $rootVariants = @(
+          $RootPath,
+          ($RootPath -replace "\\", "/"),
+          ($RootPath -replace "/", "\\")
+        ) | Where-Object { $_ } | Select-Object -Unique
+        Get-CimInstance Win32_Process |
+          Where-Object {
+            if (-not $_.CommandLine -or $_.ProcessId -eq $currentPid) { return $false }
+            $inProject = $false
+            foreach ($root in $rootVariants) {
+              if ($_.CommandLine.Contains($root)) { $inProject = $true; break }
+            }
+            $isRuntime = $_.Name -match "^(python|node|npm|uvicorn|powershell|pwsh)(\.exe)?$"
+            $isUvicornChild = $_.Name -eq "python.exe" -and $_.CommandLine -match "multiprocessing-fork|spawn_main"
+            return ($inProject -and $isRuntime) -or $isUvicornChild
+          } |
+          ForEach-Object {
+            try { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop }
+            catch { try { & taskkill.exe /F /T /PID $_.ProcessId | Out-Null } catch {} }
+          }
+        Start-Sleep -Milliseconds 800
+      '
+      WEB_AGENT_ROOT_WINDOWS="$root_windows" "$ps_cmd" -NoProfile -Command "$ps_script" >/dev/null 2>&1 || true
     fi
     ensure_port_free_windows "$BACKEND_PORT" "backend"
     ensure_port_free_windows "$FRONTEND_PORT" "frontend"
@@ -477,6 +510,7 @@ ensure_root_env() {
   OPS_ADMIN_TOKEN="${OPS_ADMIN_TOKEN:-}"
   POSTGRES_AUTO_START="${POSTGRES_AUTO_START:-false}"
   POSTGRES_CONTAINER_NAME="${POSTGRES_CONTAINER_NAME:-websearch-pg}"
+  POSTGRES_IMAGE="${POSTGRES_IMAGE:-postgres:16}"
   POSTGRES_FORCE_RECREATE="${POSTGRES_FORCE_RECREATE:-false}"
   POSTGRES_PORT="${POSTGRES_PORT:-5432}"
   POSTGRES_DB="${POSTGRES_DB:-web_search}"
@@ -484,11 +518,13 @@ ensure_root_env() {
   POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-postgres}"
   PGADMIN_AUTO_START="${PGADMIN_AUTO_START:-false}"
   PGADMIN_CONTAINER_NAME="${PGADMIN_CONTAINER_NAME:-websearch-pgadmin}"
+  PGADMIN_IMAGE="${PGADMIN_IMAGE:-dpage/pgadmin4:8}"
   PGADMIN_PORT="${PGADMIN_PORT:-5050}"
   PGADMIN_DEFAULT_EMAIL="${PGADMIN_DEFAULT_EMAIL:-admin@local.dev}"
   PGADMIN_DEFAULT_PASSWORD="${PGADMIN_DEFAULT_PASSWORD:-admin}"
   SEARXNG_AUTO_START="${SEARXNG_AUTO_START:-false}"
   SEARXNG_CONTAINER_NAME="${SEARXNG_CONTAINER_NAME:-websearch-searxng}"
+  SEARXNG_IMAGE="${SEARXNG_IMAGE:-searxng/searxng:latest}"
   SEARXNG_FORCE_RECREATE="${SEARXNG_FORCE_RECREATE:-false}"
   SEARXNG_PORT="${SEARXNG_PORT:-8080}"
 
@@ -742,6 +778,7 @@ setup_backend() {
   local cors_origins
 
   log "Dang cai dependencies backend"
+  cleanup_existing_processes
   "$venv_python" -m pip install --upgrade pip setuptools wheel
   (
     cd "$ROOT_DIR/backend"

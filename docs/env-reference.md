@@ -1,126 +1,180 @@
-# Tham chiếu biến môi trường
+﻿# Tham chiếu biến môi trường
+
+Dự án có ba lớp cấu hình chính:
+
+- Root `.env`: dùng bởi script setup/run để đồng bộ backend/frontend và local infra.
+- `backend/.env`: cấu hình FastAPI backend.
+- `frontend/.env.local`: cấu hình Next.js frontend.
+
+Không commit các file env thật vào git.
 
 ## Root `.env`
 
-Được dùng bởi `setup.sh` để đồng bộ backend/frontend.
+Root `.env` được tạo từ `.env.example`.
 
-- `BACKEND_HOST`: host backend runtime, vd `127.0.0.1`
-- `BACKEND_PORT`: port backend, vd `8011`
-- `FRONTEND_HOST`: host frontend dev server, vd `0.0.0.0`
-- `FRONTEND_PORT`: port frontend, vd `3005`
-- `FRONTEND_PUBLIC_HOST`: host de access frontend tu browser
-- `PUBLIC_BACKEND_HOST`: host backend de frontend/reverse-proxy su dung
-- `AUTO_START_APPS`: `true|false` auto start app sau setup
-- `LLM_MODEL`: model id cho backend
-- `LLM_BASE_URL`: optional override cho endpoint OpenAI-compatible.
-	- Đây là chỗ chính để đổi IP/host model khi model nằm ở máy khác.
-	- Ví dụ: `http://192.168.1.74:8007/v1`.
-	- Máy chạy backend phải truy cập được `LLM_BASE_URL`, kiểm tra nhanh bằng `curl http://<host>:8007/v1/models`.
-- `FEATURE_SESSION_HISTORY`: bat/tat UI + API session/history
-- `FEATURE_OPS_DASHBOARD`: bat/tat UI + API ops dashboard
-- `FEATURE_LLM_RUNTIME_CONFIG`: bat/tat API llm runtime config/health/test
-- `RBAC_ENABLED`: bat/tat RBAC guard cho endpoint nhay cam
-- `RBAC_ADMIN_TOKEN`: token cho role `admin` khi `RBAC_ENABLED=true`
-- `OPS_ROLE`: role frontend gui len backend (`viewer|operator|admin`)
-- `OPS_ADMIN_TOKEN`: admin token frontend gui len backend
-- `POSTGRES_AUTO_START`: `true|false`, auto-start PostgreSQL Docker container khi chay `setup.sh`
-- `POSTGRES_CONTAINER_NAME`: mac dinh `websearch-pg`
-- `POSTGRES_FORCE_RECREATE`: `true|false`, xoa container PostgreSQL cu va tao lai
-- `POSTGRES_PORT`: port public cua PostgreSQL, mac dinh `5432`
-- `POSTGRES_DB`: database name, mac dinh `web_search`
-- `POSTGRES_USER`: user PostgreSQL, mac dinh `postgres`
-- `POSTGRES_PASSWORD`: password PostgreSQL, mac dinh `postgres`
-- `PGADMIN_AUTO_START`: `true|false`, auto-start pgAdmin Docker container
-- `PGADMIN_CONTAINER_NAME`: mac dinh `websearch-pgadmin`
-- `PGADMIN_PORT`: port pgAdmin, mac dinh `5050`
-- `PGADMIN_DEFAULT_EMAIL`: email dang nhap pgAdmin
-- `PGADMIN_DEFAULT_PASSWORD`: password dang nhap pgAdmin
-- `SEARXNG_AUTO_START`: `true|false`, auto-start local SearXNG Docker container
-- `SEARXNG_CONTAINER_NAME`: mac dinh `websearch-searxng`
-- `SEARXNG_FORCE_RECREATE`: `true|false`, xoa container SearXNG cu va tao lai de nhan config moi
-- `SEARXNG_PORT`: port local SearXNG, mac dinh `8080`
+### Runtime app
+
+- `BACKEND_HOST`: host backend, mặc định `127.0.0.1`.
+- `BACKEND_PORT`: port backend, mặc định `8011`.
+- `FRONTEND_HOST`: host frontend dev server, mặc định `0.0.0.0`.
+- `FRONTEND_PORT`: port frontend, mặc định `3005`.
+- `FRONTEND_PUBLIC_HOST`: host frontend cho browser.
+- `PUBLIC_BACKEND_HOST`: host backend public nếu cần reverse proxy.
+- `AUTO_START_APPS`: `true|false`, tự start app sau setup.
+
+### LLM
+
+- `LLM_BASE_URL`: endpoint OpenAI-compatible, ví dụ `http://127.0.0.1:8007/v1`.
+- `LLM_MODEL`: model ID.
+
+Máy chạy backend phải truy cập được `LLM_BASE_URL`. Kiểm tra nhanh:
+
+```bash
+curl http://127.0.0.1:8007/v1/models
+```
+
+### Feature flags
+
+- `FEATURE_SESSION_HISTORY`: bật/tắt session history.
+- `FEATURE_OPS_DASHBOARD`: bật/tắt Ops Dashboard.
+- `FEATURE_LLM_RUNTIME_CONFIG`: bật/tắt Prompt Manager và LLM runtime config.
+
+### RBAC/Ops
+
+- `RBAC_ENABLED`: bật/tắt RBAC guard cho endpoint nhạy cảm.
+- `RBAC_ADMIN_TOKEN`: token admin backend.
+- `OPS_ROLE`: role frontend gửi lên backend, ví dụ `viewer`, `operator`, `admin`.
+- `OPS_ADMIN_TOKEN`: admin token frontend gửi lên backend.
+
+### PostgreSQL Docker
+
+- `POSTGRES_AUTO_START`: tự start PostgreSQL khi setup.
+- `POSTGRES_CONTAINER_NAME`: tên container, mặc định `websearch-pg`.
+- `POSTGRES_IMAGE`: image, mặc định `postgres:16`.
+- `POSTGRES_FORCE_RECREATE`: xoá container cũ và tạo lại.
+- `POSTGRES_PORT`: port public, mặc định `5432`.
+- `POSTGRES_DB`: database, mặc định `web_search`.
+- `POSTGRES_USER`: user, mặc định `postgres`.
+- `POSTGRES_PASSWORD`: password, mặc định `postgres`.
+
+### pgAdmin Docker
+
+- `PGADMIN_AUTO_START`: tự start pgAdmin khi setup.
+- `PGADMIN_CONTAINER_NAME`: tên container, mặc định `websearch-pgadmin`.
+- `PGADMIN_IMAGE`: image, mặc định `dpage/pgadmin4:8`.
+- `PGADMIN_PORT`: port public, mặc định `5050`.
+- `PGADMIN_DEFAULT_EMAIL`: email đăng nhập.
+- `PGADMIN_DEFAULT_PASSWORD`: password đăng nhập.
+
+### SearXNG Docker
+
+- `SEARXNG_AUTO_START`: tự start SearXNG local.
+- `SEARXNG_CONTAINER_NAME`: tên container, mặc định `websearch-searxng`.
+- `SEARXNG_IMAGE`: image, mặc định `searxng/searxng:latest`.
+- `SEARXNG_FORCE_RECREATE`: xoá container cũ và tạo lại.
+- `SEARXNG_PORT`: port public, mặc định `8080`.
 
 ## `backend/.env`
 
-Tien to `APP_`.
+Các biến backend dùng prefix `APP_`.
+
+### App/API
 
 - `APP_APP_NAME`
 - `APP_ENVIRONMENT`
 - `APP_API_PREFIX`
 - `APP_CORS_ORIGINS`
 - `APP_REQUEST_TIMEOUT_SECONDS`
+
+### Quality/search
+
 - `APP_QUALITY_MIN_RESULTS`
 - `APP_QUALITY_MIN_UNIQUE_DOMAINS`
 - `APP_RESULT_CACHE_TTL_SECONDS`
 - `APP_TAVILY_SEARCH_DEPTH`
 - `APP_TAVILY_MAX_COOLDOWN_SECONDS`
+- `APP_FORCE_SEARXNG_TEST_MODE`
+
+### Local stores
+
 - `APP_TAVILY_KEY_STORE_PATH`
 - `APP_CHAT_SESSION_STORE_PATH`
 - `APP_CHAT_SESSION_RETENTION_DAYS`
-- `APP_LLM_RUNTIME_STORE_PATH`: file luu runtime config cho dashboard LLM
-- `APP_AUDIT_LOG_STORE_PATH`: file log audit thao tac nhay cam
-- `APP_DATABASE_URL`: chuoi ket noi PostgreSQL (vd `postgresql+psycopg://postgres:postgres@localhost:5432/web_search?connect_timeout=5`)
-- `APP_SESSION_STORE_BACKEND`: `auto|local|postgres`
-- `APP_SESSION_STORE_DUAL_WRITE`: `true|false`, ghi ca Postgres + JSON trong giai doan chuyen doi
-- `APP_RBAC_ENABLED`: `true|false` bat guard role cho API nhay cam
-- `APP_RBAC_ADMIN_TOKEN`: token bo sung cho role admin
-- `APP_FEATURE_SESSION_HISTORY`
-- `APP_FEATURE_OPS_DASHBOARD`
-- `APP_FEATURE_LLM_RUNTIME_CONFIG`
+- `APP_LLM_RUNTIME_STORE_PATH`
+- `APP_AUDIT_LOG_STORE_PATH`
+
+### Database/session
+
+- `APP_DATABASE_URL`: PostgreSQL connection string.
+- `APP_SESSION_STORE_BACKEND`: `auto|local|postgres`.
+- `APP_SESSION_STORE_DUAL_WRITE`: ghi cả Postgres và JSON trong giai đoạn chuyển đổi.
+
+### LLM
+
 - `APP_LLM_ENABLED`
 - `APP_LLM_BASE_URL`
-	- Backend đọc biến này từ `backend/.env`.
-	- Nếu model host remote, sửa giá trị này hoặc sửa root `LLM_BASE_URL` rồi chạy lại setup.
 - `APP_LLM_MODEL`
 - `APP_LLM_TEMPERATURE`
-- `APP_LLM_MAX_TOKENS` (optional). Có thể để trống; backend sẽ hiểu là `None`.
-- `APP_LLM_SUMMARY_MAX_CHARS`: fallback default cho target output length neu runtime config chua co
-- `APP_LLM_SUMMARY_SYSTEM_PROMPT`: fallback default system prompt neu runtime config chua co
-- `APP_QUERY_ANALYST_MODE`: `rule` hoac `llm`
+- `APP_LLM_MAX_TOKENS`
+- `APP_LLM_SUMMARY_MAX_TOKENS`
+- `APP_LLM_SUMMARY_SYSTEM_PROMPT`
+
+Lưu ý:
+
+- `APP_LLM_MAX_TOKENS` là token budget gửi xuống OpenAI-compatible API.
+- `APP_LLM_SUMMARY_MAX_TOKENS` là target output length cho final summary.
+- Nếu để `APP_LLM_MAX_TOKENS=` rỗng, backend nên hiểu là `None`.
+
+### Query/Provider
+
+- `APP_QUERY_ANALYST_MODE`: `rule` hoặc `llm`.
 - `APP_SEARXNG_BASE_URL`
 - `APP_SEARXNG_BACKUP_BASE_URLS`
 - `APP_SEARXNG_CATEGORIES`
 - `APP_SEARXNG_MAX_QPS`
 - `APP_SEARXNG_CIRCUIT_FAIL_THRESHOLD`
 - `APP_SEARXNG_CIRCUIT_OPEN_SECONDS`
-- `APP_FORCE_SEARXNG_TEST_MODE`: `true|false`, khi Tavily key khong usable thi bo qua circuit de test SearXNG fallback
 
 ## Runtime LLM config
 
 Endpoint:
+
 - `GET /api/v1/llm/config`
 - `PATCH /api/v1/llm/config`
 
-File store mac dinh:
+File store mặc định:
+
 - `backend/config/llm_runtime.json`
 
 Trường quan trọng:
+
+- `base_url`: LLM base URL.
+- `model`: model ID.
+- `temperature`: nhiệt độ sinh câu trả lời.
+- `max_tokens`: token budget API.
 - `summary_system_prompt`: system prompt cho final summarizer.
-- `summary_max_chars`: target output length. Backend ưu tiên prompt/rewrite để LLM tự viết gọn trong ngân sách này, không ưu tiên cắt thẳng output sau khi sinh.
+- `summary_max_tokens`: target output length theo token.
+
+Prompt Manager trên UI quản lý runtime config này. Đây là prompt dùng cho LLM final summary, không phải prompt riêng rời rạc khác.
 
 ## `frontend/.env.local`
 
-- `NEXT_PUBLIC_API_BASE`: mac dinh `/api/v1`
-- `API_PROXY_HOST`: backend host cho rewrite
-- `API_PROXY_PORT`: backend port cho rewrite
+- `NEXT_PUBLIC_API_BASE`: mặc định `/api/v1`.
+- `API_PROXY_HOST`: backend host cho Next.js rewrite.
+- `API_PROXY_PORT`: backend port cho Next.js rewrite.
 - `NEXT_PUBLIC_FEATURE_SESSION_HISTORY`
 - `NEXT_PUBLIC_FEATURE_OPS_DASHBOARD`
 - `NEXT_PUBLIC_FEATURE_LLM_RUNTIME_CONFIG`
 - `NEXT_PUBLIC_OPS_ROLE`
 - `NEXT_PUBLIC_OPS_ADMIN_TOKEN`
 
-## Feature flags UI hiện tại
-
-- `NEXT_PUBLIC_FEATURE_SESSION_HISTORY=true`: hiển thị sidebar lịch sử chat/session.
-- `NEXT_PUBLIC_FEATURE_OPS_DASHBOARD=true`: hiển thị tab Ops Dashboard trong popup Cài đặt.
-- `NEXT_PUBLIC_FEATURE_LLM_RUNTIME_CONFIG=true`: hiển thị Prompt Manager và LLM runtime config.
-
 ## Endpoint streaming
 
-Frontend dùng `POST /api/v1/search/stream` qua `NEXT_PUBLIC_API_BASE`.
+Frontend dùng `POST /api/v1/search/stream`.
 
 Event SSE:
+
 - `status`: trạng thái pipeline.
 - `token`: chunk câu trả lời.
-- `done`: final `SearchResultData`.
-- `error`: lỗi có `code`, `message`, `details`.
+- `done`: final result.
+- `error`: lỗi.
