@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -36,6 +37,21 @@ class SearchOrchestrator:
         self.searxng_service = searxng_service
         self.llm_summary_service = llm_summary_service
         self.query_cache = query_cache
+
+    def _cache_scope(self) -> str:
+        runtime = self.llm_summary_service.runtime_store.get()
+        scope_payload = "|".join(
+            [
+                str(runtime.get("base_url") or ""),
+                str(runtime.get("model") or ""),
+                str(runtime.get("temperature") or ""),
+                str(runtime.get("max_tokens") or ""),
+                str(runtime.get("summary_max_tokens") or ""),
+                str(runtime.get("summary_system_prompt") or ""),
+            ]
+        )
+        digest = hashlib.sha256(scope_payload.encode("utf-8")).hexdigest()[:16]
+        return f"prompt:{digest}"
 
     async def _resolve_summary(
         self,
@@ -125,8 +141,10 @@ class SearchOrchestrator:
         attempts: list[ProviderAttempt] = []
         cache_hits = 0
 
+        cache_scope = self._cache_scope()
+
         async def worker(sub_query: str) -> tuple[SearchResultData, bool]:
-            cached_sub = self.query_cache.get_subquery(query=sub_query, top_k=top_k)
+            cached_sub = self.query_cache.get_subquery(query=sub_query, top_k=top_k, scope=cache_scope)
             if cached_sub is not None:
                 cached_sub.attempts.insert(
                     0,
@@ -154,7 +172,7 @@ class SearchOrchestrator:
                         self.settings.request_timeout_seconds + 1.0,
                     ),
                 )
-                self.query_cache.set_subquery(query=sub_query, top_k=top_k, payload=result)
+                self.query_cache.set_subquery(query=sub_query, top_k=top_k, payload=result, scope=cache_scope)
                 return result, False
 
         tasks = [asyncio.create_task(worker(q)) for q in queries]
@@ -191,7 +209,8 @@ class SearchOrchestrator:
             if emit is not None:
                 await emit("status", {"status": status, **payload})
 
-        cached = self.query_cache.get(query=query, top_k=top_k)
+        cache_scope = self._cache_scope()
+        cached = self.query_cache.get(query=query, top_k=top_k, scope=cache_scope)
         if cached:
             await send("cache_hit", source_count=len(cached.sources))
             cached.attempts.insert(
@@ -403,5 +422,5 @@ class SearchOrchestrator:
                 analysis_reasoning_short=analysis.analysis_reasoning_short,
             )
 
-        self.query_cache.set(query=query, top_k=top_k, payload=data)
+        self.query_cache.set(query=query, top_k=top_k, payload=data, scope=cache_scope)
         return data

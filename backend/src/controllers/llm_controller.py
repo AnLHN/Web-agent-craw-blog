@@ -64,6 +64,8 @@ async def patch_llm_config(
         update_kwargs["temperature"] = payload.temperature
     if "max_tokens" in payload.model_fields_set:
         update_kwargs["max_tokens"] = payload.max_tokens
+    if "summary_max_tokens" in payload.model_fields_set:
+        update_kwargs["summary_max_tokens"] = payload.summary_max_tokens
     if "summary_max_chars" in payload.model_fields_set:
         update_kwargs["summary_max_chars"] = payload.summary_max_chars
     if "summary_system_prompt" in payload.model_fields_set:
@@ -85,6 +87,7 @@ async def patch_llm_config(
                 "model": payload.model,
                 "temperature": payload.temperature,
                 "max_tokens": payload.max_tokens,
+                "summary_max_tokens": payload.summary_max_tokens,
                 "summary_max_chars": payload.summary_max_chars,
                 "summary_system_prompt": payload.summary_system_prompt,
             },

@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     llm_model: str = "google/gemma-4-E4B-it"
     llm_temperature: float = 0.2
     llm_max_tokens: Optional[int] = None
+    llm_summary_max_tokens: int = 512
     llm_summary_max_chars: int = 512
     llm_summary_system_prompt: str = (
         "Ban la tro ly tong hop thong tin web chinh xac. "

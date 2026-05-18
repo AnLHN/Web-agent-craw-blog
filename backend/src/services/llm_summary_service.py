@@ -7,7 +7,7 @@ from src.config.settings import Settings
 from src.models.schemas import SourceItem
 from src.services.llm_runtime_store import LlmRuntimeStore
 from src.services.types import ProviderAttemptData, SummaryResult
-from src.utils.text import build_summary
+from src.utils.text import build_summary, sanitize_snippet
 
 
 class LlmSummaryService:
@@ -56,10 +56,10 @@ class LlmSummaryService:
         return mapping.get(style, mapping["general"])
 
     @staticmethod
-    def _build_user_prompt(query: str, sources: list[SourceItem], max_chars: int) -> str:
+    def _build_user_prompt(query: str, sources: list[SourceItem], max_tokens: int) -> str:
         lines = []
         for index, source in enumerate(sources[:5], start=1):
-            snippet = source.snippet.strip().replace("\n", " ")
+            snippet = sanitize_snippet(source.snippet)
             lines.append(
                 f"{index}. title={source.title}; domain={source.domain}; snippet={snippet}; url={source.url}"
             )
@@ -67,17 +67,18 @@ class LlmSummaryService:
         style = LlmSummaryService._detect_answer_style(query)
         outline = LlmSummaryService._outline_for_style(style)
         joined_sources = "\n".join(lines)
-        target_chars = max(120, int(max_chars * 0.9))
+        target_tokens = max(32, int(max_tokens * 0.9))
         return (
             "Hay viet ban tong hop day du, de doc, ro y bang tieng Viet. "
+            "Bat buoc tra loi hoan toan bang tieng Viet; khong tra loi bang tieng Anh, tru ten rieng/thuong hieu. "
             "Khong markdown (**), khong mo dau bang cau khuon mau. "
             "Khong ep so muc co dinh; chon bo cuc linh hoat theo loai cau hoi.\n"
             f"{outline}\n"
             "Moi phan viet ngan gon, nhieu thong tin cu the, tranh lap y. "
             "Neu co thong tin tu nguon, chen '(Nguon: <domain>)' o cuoi cau/phan phu hop. "
             "Khong bịa thêm ngoài nguồn. Neu thieu du lieu thi ghi ro phan thieu du lieu. "
-            f"Quan trong: tu lap ke hoach de cau tra loi hoan chinh trong khoang {target_chars}-{max_chars} ky tu. "
-            "Khong viet vuot ngan sach roi trong cho he thong cat bot. "
+            f"Quan trong: tu lap ke hoach de cau tra loi hoan chinh trong khoang {target_tokens}-{max_tokens} tokens. "
+            "Khong viet vuot ngan sach token roi trong cho he thong cat bot. "
             "Neu can rut gon, uu tien giu cau tra loi tron y hon la liet ke nhieu muc. "
             "Ket thuc bang cau tron ven, khong bo do, khong dung dau ba cham de ket thuc.\n"
             f"AnswerStyle: {style}\n"
@@ -86,38 +87,17 @@ class LlmSummaryService:
         )
 
     @staticmethod
-    def _cap_summary_length(text: str, max_chars: int) -> str:
-        cleaned = text.strip()
-        if max_chars <= 0 or len(cleaned) <= max_chars:
-            return cleaned
-        candidate = cleaned[:max_chars].rstrip()
-        last_end = max(candidate.rfind("."), candidate.rfind("!"), candidate.rfind("?"))
-        if last_end >= int(max_chars * 0.6):
-            return candidate[: last_end + 1].strip()
-        return candidate.rstrip(" ,;:-") + "..."
-
-    @staticmethod
-    def _is_within_length_budget(text: str, max_chars: int) -> bool:
-        if max_chars <= 0:
-            return True
-        return len(text.strip()) <= max_chars
-
-    @staticmethod
-    def _safe_complete_fallback(query: str, sources: list[SourceItem], max_chars: int) -> str:
+    def _safe_complete_fallback(query: str, sources: list[SourceItem]) -> str:
         pieces: list[str] = []
         if sources:
             first = sources[0]
-            snippet = (first.snippet or first.title or "").replace("\n", " ").strip()
+            snippet = sanitize_snippet(first.snippet or first.title or "")
             if snippet:
                 pieces.append(f"{snippet.rstrip(' .!?')}.")
             pieces.append(f"Nguon chinh: {first.domain}.")
         else:
             pieces.append(f"Chua du du lieu tu nguon de tra loi day du cho truy van: {query}.")
-
-        answer = " ".join(pieces).strip()
-        if max_chars > 0 and len(answer) > max_chars:
-            answer = LlmSummaryService._cap_summary_length(answer, max_chars)
-        return answer
+        return " ".join(pieces).strip()
 
     async def summarize(self, query: str, sources: list[SourceItem]) -> SummaryResult:
         if not self.settings.llm_enabled:
@@ -149,7 +129,7 @@ class LlmSummaryService:
         model = str(runtime["model"])
         temperature = float(runtime["temperature"])
         max_tokens = runtime.get("max_tokens")
-        summary_max_chars = int(runtime.get("summary_max_chars") or self.settings.llm_summary_max_chars or 512)
+        summary_max_tokens = int(runtime.get("summary_max_tokens") or self.settings.llm_summary_max_tokens or 512)
         summary_system_prompt = str(
             runtime.get("summary_system_prompt") or self.settings.llm_summary_system_prompt
         ).strip()
@@ -167,14 +147,16 @@ class LlmSummaryService:
                     "content": self._build_user_prompt(
                         query=query,
                         sources=sources,
-                        max_chars=summary_max_chars,
+                        max_tokens=summary_max_tokens,
                     ),
                 },
             ],
             "temperature": temperature,
         }
+        request_max_tokens = summary_max_tokens
         if isinstance(max_tokens, int) and max_tokens > 0:
-            payload["max_tokens"] = max_tokens
+            request_max_tokens = min(summary_max_tokens, max_tokens)
+        payload["max_tokens"] = request_max_tokens
 
         try:
             content, finish_reason = await self._call_completion(base_url=base_url, payload=payload)
@@ -213,27 +195,6 @@ class LlmSummaryService:
             )
             if not finalized_summary:
                 finalized_summary = build_summary(query=query, sources=sources)
-            if not self._is_within_length_budget(finalized_summary, summary_max_chars):
-                compact_summary = await self._rewrite_compact_complete(
-                    base_url=base_url,
-                    original_summary=finalized_summary,
-                    query=query,
-                    sources=sources,
-                    max_chars=summary_max_chars,
-                )
-                compact_summary = self._ensure_complete_response(
-                    text=compact_summary,
-                    query=query,
-                    sources=sources,
-                )
-                if compact_summary and self._is_within_length_budget(compact_summary, summary_max_chars):
-                    finalized_summary = compact_summary
-                else:
-                    finalized_summary = self._safe_complete_fallback(
-                        query=query,
-                        sources=sources,
-                        max_chars=summary_max_chars,
-                    )
             return SummaryResult(
                 summary=finalized_summary,
                 attempt=ProviderAttemptData(
@@ -287,6 +248,13 @@ class LlmSummaryService:
     @staticmethod
     def _sanitize_summary(text: str) -> str:
         cleaned = text.replace("**", "").replace("\r", "").strip()
+        cleaned = re.sub(r"^\s*#{1,6}\s+", "", cleaned, flags=re.MULTILINE)
+        cleaned = re.sub(
+            r"^\s*(skip to content|skip to main content|jump to content)\b[\s:#\-|]*",
+            "",
+            cleaned,
+            flags=re.IGNORECASE | re.MULTILINE,
+        )
         cleaned = re.sub(r"^[ \t]*[-*][ \t]+", "", cleaned, flags=re.MULTILINE)
         cleaned = re.sub(
             r"^\s*(dưới đây|duoi day)[^:\n]{0,220}:\s*",
@@ -366,7 +334,7 @@ class LlmSummaryService:
         # Deterministic complete fallback.
         bullet_lines: list[str] = []
         for idx, src in enumerate(sources[:5], start=1):
-            snippet = (src.snippet or src.title or "").replace("\n", " ").strip()
+            snippet = sanitize_snippet(src.snippet or src.title or "")
             if not snippet:
                 continue
             if snippet[-1] not in ".!?":
@@ -399,9 +367,11 @@ class LlmSummaryService:
             ],
             "temperature": float(runtime["temperature"]),
         }
+        request_max_tokens = int(runtime.get("summary_max_tokens") or self.settings.llm_summary_max_tokens or 512)
         max_tokens = runtime.get("max_tokens")
         if isinstance(max_tokens, int) and max_tokens > 0:
-            payload["max_tokens"] = max_tokens
+            request_max_tokens = min(request_max_tokens, max_tokens)
+        payload["max_tokens"] = request_max_tokens
 
         return await self._call_completion(base_url=base_url, payload=payload)
 
@@ -452,7 +422,7 @@ class LlmSummaryService:
         runtime = self.runtime_store.get()
         source_lines = []
         for index, source in enumerate(sources[:5], start=1):
-            snippet = (source.snippet or source.title or "").replace("\n", " ").strip()
+            snippet = sanitize_snippet(source.snippet or source.title or "")
             source_lines.append(f"{index}. domain={source.domain}; snippet={snippet}")
         payload = {
             "model": str(runtime["model"]),
@@ -479,8 +449,10 @@ class LlmSummaryService:
             ],
             "temperature": float(runtime["temperature"]),
         }
+        request_max_tokens = int(runtime.get("summary_max_tokens") or self.settings.llm_summary_max_tokens or 512)
         max_tokens = runtime.get("max_tokens")
         if isinstance(max_tokens, int) and max_tokens > 0:
-            payload["max_tokens"] = max_tokens
+            request_max_tokens = min(request_max_tokens, max_tokens)
+        payload["max_tokens"] = request_max_tokens
         content, _ = await self._call_completion(base_url=base_url, payload=payload)
         return content.strip()

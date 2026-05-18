@@ -11,6 +11,7 @@ function defaultPromptConfig(): LlmRuntimeConfig {
     model: "",
     temperature: 0.2,
     max_tokens: null,
+    summary_max_tokens: 512,
     summary_max_chars: 512,
     summary_system_prompt:
       "Ban la tro ly tong hop thong tin web chinh xac. Tra loi ngan gon, ro y, dung du lieu tu nguon. Khong bia them thong tin ngoai nguon; neu thieu du lieu thi noi ro.",
@@ -46,7 +47,7 @@ export function PromptManagerPanel() {
     setMessage("");
     const res = await patchLlmConfig({
       summary_system_prompt: (config.summary_system_prompt || "").trim(),
-      summary_max_chars: config.summary_max_chars ?? 512,
+      summary_max_tokens: config.summary_max_tokens ?? 512,
     });
     setSaving(false);
     if (!res.success || !res.data) {
@@ -82,22 +83,22 @@ export function PromptManagerPanel() {
           }
           className="min-h-64 w-full rounded-md border border-stone-300 px-3 py-2 text-sm leading-6 focus:border-amber-500 focus:outline-none"
         />
-        <label className="text-xs font-medium text-stone-700">Target Output Length</label>
+        <label className="text-xs font-medium text-stone-700">Target Output Length (tokens)</label>
         <input
           type="number"
-          min={120}
-          max={4000}
-          value={config.summary_max_chars ?? 512}
+          min={32}
+          max={16384}
+          value={config.summary_max_tokens ?? 512}
           onChange={(event) =>
             setConfig((prev) => ({
               ...prev,
-              summary_max_chars: Number(event.target.value) || 512,
+              summary_max_tokens: Number(event.target.value) || 512,
             }))
           }
           className="w-44 rounded-md border border-stone-300 px-2 py-1 text-sm focus:border-amber-500 focus:outline-none"
         />
         <p className="-mt-2 text-xs text-stone-500">
-          LLM se tu viet/rewrite de vua do dai nay; backend chi cat tho nhu lop bao ve cuoi cung.
+          Output length dung theo token budget cua OpenAI-compatible API.
         </p>
         <button
           type="submit"
@@ -137,7 +138,7 @@ export function PromptManagerPopup() {
     setMessage("");
     const res = await patchLlmConfig({
       summary_system_prompt: (config.summary_system_prompt || "").trim(),
-      summary_max_chars: config.summary_max_chars ?? 512,
+      summary_max_tokens: config.summary_max_tokens ?? 512,
     });
     setSaving(false);
     if (!res.success || !res.data) {
@@ -190,23 +191,23 @@ export function PromptManagerPopup() {
                 className="h-48 w-full rounded-md border border-stone-300 px-3 py-2 text-xs"
               />
               <label className="text-xs font-medium text-stone-700">
-                Target Output Length
+                Target Output Length (tokens)
               </label>
               <input
                 type="number"
-                min={120}
-                max={4000}
-                value={config.summary_max_chars ?? 512}
+                min={32}
+                max={16384}
+                value={config.summary_max_tokens ?? 512}
                 onChange={(event) =>
                   setConfig((prev) => ({
                     ...prev,
-                    summary_max_chars: Number(event.target.value) || 512,
+                    summary_max_tokens: Number(event.target.value) || 512,
                   }))
                 }
                 className="w-40 rounded-md border border-stone-300 px-2 py-1 text-sm"
               />
               <p className="-mt-2 text-xs text-stone-500">
-                LLM se tu viet/rewrite de vua do dai nay; backend chi cat tho nhu lop bao ve cuoi cung.
+                Output length dung theo token budget cua OpenAI-compatible API.
               </p>
               <button
                 type="submit"

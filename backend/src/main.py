@@ -8,6 +8,7 @@ from src.config.settings import Settings, get_settings
 from src.routes.api import api_router
 from src.services.evidence_merge_service import EvidenceMergeService
 from src.services.chat_session_store_factory import build_chat_session_store
+from src.services.context_query_rewriter_service import ContextQueryRewriterService
 from src.services.audit_log_store import AuditLogStore
 from src.services.key_store import TavilyKeyStore
 from src.services.llm_runtime_store import LlmRuntimeStore
@@ -45,6 +46,10 @@ def build_services(settings: Settings) -> dict:
     query_planner_service = QueryPlannerService(settings=settings)
     evidence_merge_service = EvidenceMergeService()
     llm_summary_service = LlmSummaryService(settings=settings, runtime_store=llm_runtime_store)
+    context_query_rewriter_service = ContextQueryRewriterService(
+        settings=settings,
+        runtime_store=llm_runtime_store,
+    )
     orchestrator = SearchOrchestrator(
         settings=settings,
         query_analyst_service=query_analyst_service,
@@ -68,6 +73,7 @@ def build_services(settings: Settings) -> dict:
         "query_planner_service": query_planner_service,
         "evidence_merge_service": evidence_merge_service,
         "llm_summary_service": llm_summary_service,
+        "context_query_rewriter_service": context_query_rewriter_service,
         "orchestrator": orchestrator,
     }
 

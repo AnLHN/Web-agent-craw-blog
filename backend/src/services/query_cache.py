@@ -5,7 +5,7 @@ from src.models.schemas import SearchResultData
 
 
 class QueryCache:
-    CACHE_VERSION = "v3"
+    CACHE_VERSION = "v4"
 
     def __init__(self, ttl_seconds: int):
         self.ttl_seconds = ttl_seconds
@@ -13,13 +13,13 @@ class QueryCache:
         self._store: dict[str, tuple[float, SearchResultData]] = {}
         self._subquery_store: dict[str, tuple[float, SearchResultData]] = {}
 
-    def _normalize_key(self, query: str, top_k: int) -> str:
-        return f"{self.CACHE_VERSION}::{query.strip().lower()}::{top_k}"
+    def _normalize_key(self, query: str, top_k: int, scope: str = "default") -> str:
+        return f"{self.CACHE_VERSION}::{scope}::{query.strip().lower()}::{top_k}"
 
-    def get(self, query: str, top_k: int) -> SearchResultData | None:
+    def get(self, query: str, top_k: int, scope: str = "default") -> SearchResultData | None:
         if self.ttl_seconds <= 0:
             return None
-        key = self._normalize_key(query, top_k)
+        key = self._normalize_key(query, top_k, scope=scope)
         now = time.time()
         with self._lock:
             if key not in self._store:
@@ -32,20 +32,20 @@ class QueryCache:
 
             return payload.model_copy(deep=True)
 
-    def set(self, query: str, top_k: int, payload: SearchResultData) -> None:
+    def set(self, query: str, top_k: int, payload: SearchResultData, scope: str = "default") -> None:
         if self.ttl_seconds <= 0:
             return
         if not payload.sources:
             return
-        key = self._normalize_key(query, top_k)
+        key = self._normalize_key(query, top_k, scope=scope)
         expires_at = time.time() + max(self.ttl_seconds, 1)
         with self._lock:
             self._store[key] = (expires_at, payload.model_copy(deep=True))
 
-    def get_subquery(self, query: str, top_k: int) -> SearchResultData | None:
+    def get_subquery(self, query: str, top_k: int, scope: str = "default") -> SearchResultData | None:
         if self.ttl_seconds <= 0:
             return None
-        key = self._normalize_key(query, top_k)
+        key = self._normalize_key(query, top_k, scope=scope)
         now = time.time()
         with self._lock:
             if key not in self._subquery_store:
@@ -56,12 +56,12 @@ class QueryCache:
                 return None
             return payload.model_copy(deep=True)
 
-    def set_subquery(self, query: str, top_k: int, payload: SearchResultData) -> None:
+    def set_subquery(self, query: str, top_k: int, payload: SearchResultData, scope: str = "default") -> None:
         if self.ttl_seconds <= 0:
             return
         if not payload.sources:
             return
-        key = self._normalize_key(query, top_k)
+        key = self._normalize_key(query, top_k, scope=scope)
         expires_at = time.time() + max(self.ttl_seconds, 1)
         with self._lock:
             self._subquery_store[key] = (expires_at, payload.model_copy(deep=True))

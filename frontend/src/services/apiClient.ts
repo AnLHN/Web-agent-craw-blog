@@ -288,6 +288,7 @@ export async function patchLlmConfig(
     model?: string;
     temperature?: number;
     max_tokens?: number | null;
+    summary_max_tokens?: number;
     summary_max_chars?: number;
     summary_system_prompt?: string;
   },

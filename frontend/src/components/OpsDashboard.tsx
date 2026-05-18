@@ -37,6 +37,7 @@ export function OpsDashboard({ onKeysChanged }: OpsDashboardProps) {
       model: "",
       temperature: 0.2,
       max_tokens: null,
+      summary_max_tokens: 512,
       summary_max_chars: 512,
       summary_system_prompt:
         "Ban la tro ly tong hop thong tin web chinh xac. Tra loi ngan gon, ro y, dung du lieu tu nguon. Khong bia them thong tin ngoai nguon; neu thieu du lieu thi noi ro.",
@@ -111,7 +112,7 @@ export function OpsDashboard({ onKeysChanged }: OpsDashboardProps) {
       model: llmConfig.model,
       temperature: llmConfig.temperature,
       max_tokens: llmConfig.max_tokens ?? null,
-      summary_max_chars: llmConfig.summary_max_chars ?? 512,
+      summary_max_tokens: llmConfig.summary_max_tokens ?? 512,
       summary_system_prompt: llmConfig.summary_system_prompt,
     });
     if (!response.success || !response.data) {
@@ -237,16 +238,16 @@ export function OpsDashboard({ onKeysChanged }: OpsDashboardProps) {
             </div>
             <input
               type="number"
-              min={120}
-              max={4000}
-              value={llmConfig?.summary_max_chars ?? 512}
+              min={32}
+              max={16384}
+              value={llmConfig?.summary_max_tokens ?? 512}
               onChange={(event) =>
                 setLlmConfig((prev) => ({
                   ...safeConfig(prev),
-                  summary_max_chars: Number(event.target.value) || 512,
+                  summary_max_tokens: Number(event.target.value) || 512,
                 }))
               }
-              placeholder="summary max chars"
+              placeholder="summary max tokens"
               className="rounded-md border border-stone-300 px-2 py-1 text-sm"
             />
             <button
@@ -257,7 +258,7 @@ export function OpsDashboard({ onKeysChanged }: OpsDashboardProps) {
             </button>
           </form>
           <p className="mt-2 text-[11px] text-stone-500">
-            Prompt output guard: summary se bi gioi han theo summary max chars.
+            Prompt output guard: summary se bi gioi han theo summary max tokens.
           </p>
           <div className="mt-2 flex gap-2">
             <button

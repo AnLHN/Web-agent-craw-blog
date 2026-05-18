@@ -8,7 +8,7 @@ import httpx
 from src.config.settings import Settings
 from src.models.schemas import SourceItem
 from src.services.types import ProviderAttemptData, ProviderSearchResult
-from src.utils.text import extract_domain
+from src.utils.text import extract_domain, sanitize_snippet
 
 
 class SearxngSearchService:
@@ -132,7 +132,7 @@ class SearxngSearchService:
                     SourceItem(
                         title=item.get("title", "Untitled"),
                         url=item.get("url", ""),
-                        snippet=item.get("content", ""),
+                        snippet=sanitize_snippet(item.get("content", "")),
                         domain=extract_domain(item.get("url", "")),
                         score=0.5,
                         published_date=item.get("publishedDate"),

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
@@ -27,6 +27,32 @@ type NavItem = {
   label: string;
   shortLabel: string;
 };
+
+function humanizeStatus(status: string): string {
+  const map: Record<string, string> = {
+    accepted: "Đã nhận truy vấn",
+    context_rewrite_started: "Đang hiểu ngữ cảnh chat",
+    context_rewrite_done: "Đã hiểu ngữ cảnh chat",
+    cache_hit: "Lấy kết quả từ cache",
+    query_analysis_started: "Đang phân tích truy vấn",
+    query_analysis_done: "Đã phân tích truy vấn",
+    query_planning_started: "Đang lập kế hoạch tìm kiếm",
+    query_planning_done: "Đã lập kế hoạch tìm kiếm",
+    retrieval_started: "Đang tìm nguồn web",
+    retrieval_done: "Đã lấy nguồn web",
+    evidence_merge_started: "Đang hợp nhất nguồn",
+    evidence_merge_done: "Đã hợp nhất nguồn",
+    fallback_single_query_started: "Đang thử lại với truy vấn gốc",
+    fallback_single_query_done: "Đã thử lại với truy vấn gốc",
+    quality_gate_extra_round_started: "Đang bổ sung vòng tìm kiếm",
+    quality_gate_extra_round_done: "Đã bổ sung vòng tìm kiếm",
+    quality_gate_passed: "Đã qua quality gate",
+    llm_summary_started: "Đang tổng hợp tóm tắt bằng LLM",
+    llm_summary_done: "Đã tổng hợp tóm tắt",
+    no_sources_found: "Không tìm thấy nguồn phù hợp",
+  };
+  return map[status] || status.replaceAll("_", " ");
+}
 
 function isSearchData(value: unknown): value is SearchData {
   if (!value || typeof value !== "object") {
@@ -71,6 +97,7 @@ export function SearchWorkspace() {
   const [isSearching, setIsSearching] = useState(false);
   const [streamStatuses, setStreamStatuses] = useState<SearchStreamStatusEvent[]>([]);
   const [streamedAnswer, setStreamedAnswer] = useState("");
+  const [streamedAnswerTarget, setStreamedAnswerTarget] = useState("");
 
   const [keys, setKeys] = useState<TavilyKeyInfo[]>([]);
   const [isLoadingKeys, setIsLoadingKeys] = useState(false);
@@ -89,6 +116,17 @@ export function SearchWorkspace() {
     return `${currentSession.title} (${currentSession.message_count} msgs)`;
   }, [currentSession]);
 
+  const currentProcessingStatus = useMemo(() => {
+    if (!isSearching) {
+      return "";
+    }
+    const latest = streamStatuses[streamStatuses.length - 1];
+    if (!latest?.status) {
+      return "Đang xử lý...";
+    }
+    return humanizeStatus(latest.status);
+  }, [isSearching, streamStatuses]);
+
   function resetChatDraftAndResult() {
     setQuery("");
     setResult(null);
@@ -97,7 +135,19 @@ export function SearchWorkspace() {
     setIsSearching(false);
     setStreamStatuses([]);
     setStreamedAnswer("");
+    setStreamedAnswerTarget("");
   }
+
+  useEffect(() => {
+    if (streamedAnswer.length >= streamedAnswerTarget.length) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      const next = streamedAnswerTarget.slice(0, streamedAnswer.length + 3);
+      setStreamedAnswer(next);
+    }, 12);
+    return () => window.clearTimeout(timer);
+  }, [streamedAnswer, streamedAnswerTarget]);
 
   async function loadKeys() {
     setIsLoadingKeys(true);
@@ -258,9 +308,11 @@ export function SearchWorkspace() {
     setResult(null);
     setStreamStatuses([]);
     setStreamedAnswer("");
+    setStreamedAnswerTarget("");
 
     try {
       const submittedQuery = query.trim();
+      setQuery("");
       setLastSubmittedQuery(submittedQuery);
       const sessionIdForSearch = await ensureActiveSessionForSearch();
       await searchWebStream(
@@ -273,7 +325,7 @@ export function SearchWorkspace() {
             return;
           }
           if (event.type === "token") {
-            setStreamedAnswer((prev) => `${prev}${event.text}`);
+            setStreamedAnswerTarget((prev) => `${prev}${event.text}`);
             return;
           }
           if (event.type === "done") {
@@ -510,44 +562,13 @@ export function SearchWorkspace() {
 
         <div className="min-h-0 flex-1 overflow-y-auto px-3 py-5 md:px-8">
           <div className="mx-auto max-w-3xl space-y-4">
-            {(isSearching || streamStatuses.length > 0 || streamedAnswer) && !result && !searchError ? (
-              <section className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
-                <div className="grid gap-4 md:grid-cols-[220px_1fr]">
-                  <div>
-                    <h3 className="text-sm font-semibold text-blue-900">Trạng thái xử lý</h3>
-                    <div className="mt-3 space-y-2">
-                      {streamStatuses.length === 0 ? (
-                        <p className="text-xs text-stone-500">Đang chờ luồng phản hồi...</p>
-                      ) : null}
-                      {streamStatuses.map((item, index) => (
-                        <div key={`${item.status}-${index}`} className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2">
-                          <p className="text-xs font-medium text-stone-800">{item.status.replaceAll("_", " ")}</p>
-                          {"source_count" in item ? (
-                            <p className="text-[11px] text-stone-500">sources: {String(item.source_count)}</p>
-                          ) : null}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-blue-900">Câu trả lời đang tạo</h3>
-                    <div className="mt-3 min-h-28 rounded-2xl border border-orange-100 bg-orange-50/70 p-3 text-sm leading-7 text-stone-800">
-                      {streamedAnswer ? (
-                        <p className="whitespace-pre-line">{streamedAnswer}</p>
-                      ) : (
-                        <p className="text-stone-500">Đang tìm nguồn và tổng hợp câu trả lời...</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </section>
-            ) : null}
-
             <SearchResultPanel
               isLoading={isSearching}
               errorMessage={searchError}
               result={result}
               latestUserQuery={lastSubmittedQuery}
+              streamedAnswer={streamedAnswer}
+              processingStatus={currentProcessingStatus}
               sessionMessages={currentSession?.messages || []}
             />
           </div>
@@ -601,3 +622,4 @@ export function SearchWorkspace() {
     </main>
   );
 }
+

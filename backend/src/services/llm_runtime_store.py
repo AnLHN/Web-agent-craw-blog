@@ -29,6 +29,7 @@ class LlmRuntimeStore:
                 "model": self.settings.llm_model,
                 "temperature": self.settings.llm_temperature,
                 "max_tokens": self.settings.llm_max_tokens,
+                "summary_max_tokens": self.settings.llm_summary_max_tokens,
                 "summary_max_chars": self.settings.llm_summary_max_chars,
                 "summary_system_prompt": self.settings.llm_summary_system_prompt,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -36,6 +37,9 @@ class LlmRuntimeStore:
         try:
             raw = json.loads(self.path.read_text(encoding="utf-8"))
             summary_max_chars = self._validate_summary_max_chars(raw.get("summary_max_chars"))
+            summary_max_tokens = self._validate_summary_max_tokens(
+                raw.get("summary_max_tokens", self.settings.llm_summary_max_tokens)
+            )
             summary_system_prompt = self._validate_summary_system_prompt(
                 raw.get("summary_system_prompt", self.settings.llm_summary_system_prompt)
             )
@@ -44,6 +48,7 @@ class LlmRuntimeStore:
                 "model": str(raw.get("model") or self.settings.llm_model),
                 "temperature": float(raw.get("temperature", self.settings.llm_temperature)),
                 "max_tokens": raw.get("max_tokens", self.settings.llm_max_tokens),
+                "summary_max_tokens": summary_max_tokens,
                 "summary_max_chars": summary_max_chars,
                 "summary_system_prompt": summary_system_prompt,
                 "updated_at": str(raw.get("updated_at") or datetime.now(timezone.utc).isoformat()),
@@ -54,6 +59,7 @@ class LlmRuntimeStore:
                 "model": self.settings.llm_model,
                 "temperature": self.settings.llm_temperature,
                 "max_tokens": self.settings.llm_max_tokens,
+                "summary_max_tokens": self.settings.llm_summary_max_tokens,
                 "summary_max_chars": self.settings.llm_summary_max_chars,
                 "summary_system_prompt": self.settings.llm_summary_system_prompt,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -92,6 +98,14 @@ class LlmRuntimeStore:
         return value
 
     @staticmethod
+    def _validate_summary_max_tokens(value: int | None) -> int:
+        if value is None:
+            return 512
+        if value < 32 or value > 16384:
+            raise ValueError("summary_max_tokens must be in range [32, 16384]")
+        return value
+
+    @staticmethod
     def _validate_summary_system_prompt(value: Any) -> str:
         prompt = str(value or "").strip()
         if len(prompt) < 20 or len(prompt) > 8000:
@@ -108,6 +122,7 @@ class LlmRuntimeStore:
         model: str | None = None,
         temperature: float | None = None,
         max_tokens: int | None | object = _UNSET,
+        summary_max_tokens: int | None | object = _UNSET,
         summary_max_chars: int | None | object = _UNSET,
         summary_system_prompt: str | None | object = _UNSET,
     ) -> dict[str, Any]:
@@ -123,6 +138,8 @@ class LlmRuntimeStore:
                 self._state["temperature"] = self._validate_temperature(float(temperature))
             if max_tokens is not self._UNSET:
                 self._state["max_tokens"] = self._validate_max_tokens(max_tokens)  # type: ignore[arg-type]
+            if summary_max_tokens is not self._UNSET:
+                self._state["summary_max_tokens"] = self._validate_summary_max_tokens(summary_max_tokens)  # type: ignore[arg-type]
             if summary_max_chars is not self._UNSET:
                 self._state["summary_max_chars"] = self._validate_summary_max_chars(summary_max_chars)  # type: ignore[arg-type]
             if summary_system_prompt is not self._UNSET:

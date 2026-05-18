@@ -198,6 +198,7 @@ class LlmRuntimeConfig(BaseModel):
     model: str
     temperature: float
     max_tokens: Optional[int] = None
+    summary_max_tokens: int = 512
     summary_max_chars: int = 512
     summary_system_prompt: str
     updated_at: str
@@ -208,6 +209,7 @@ class LlmRuntimeConfigPatchRequest(BaseModel):
     model: Optional[str] = None
     temperature: Optional[float] = Field(default=None, ge=0.0, le=2.0)
     max_tokens: Optional[int] = Field(default=None, ge=1, le=16384)
+    summary_max_tokens: Optional[int] = Field(default=None, ge=32, le=16384)
     summary_max_chars: Optional[int] = Field(default=None, ge=120, le=4000)
     summary_system_prompt: Optional[str] = Field(default=None, min_length=20, max_length=8000)
 

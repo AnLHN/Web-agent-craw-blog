@@ -721,20 +721,19 @@ def test_search_stream_emits_status_token_and_done(tmp_path: Path) -> None:
     assert '"provider_used"' in body
 
 
-def test_llm_summary_rewrites_to_length_budget_instead_of_cutting(tmp_path: Path) -> None:
+def test_llm_summary_uses_token_budget_instead_of_character_cutting(tmp_path: Path) -> None:
     client = build_client(
         tmp_path,
         llm_enabled=True,
         llm_base_url="http://vllm.test/v1",
         llm_model="gemma-local",
-        llm_summary_max_chars=120,
+        llm_summary_max_tokens=64,
     )
     long_summary = (
         "ThinkPad la dong laptop doanh nghiep cua Lenovo voi do ben cao, ban phim tot, "
         "nhieu tuy chon bao mat va cau hinh cho cong viec van phong, ky thuat, lap trinh. "
         "Dong may nay co nhieu series nhu X, T, P va E cho cac nhu cau khac nhau."
     )
-    compact_summary = "ThinkPad la laptop doanh nghiep cua Lenovo, noi bat ve do ben, ban phim tot va bao mat (lenovo.com)."
 
     with respx.mock(assert_all_called=True) as router:
         router.get("https://searx.test/search").mock(
@@ -757,10 +756,7 @@ def test_llm_summary_rewrites_to_length_budget_instead_of_cutting(tmp_path: Path
             )
         )
         llm_mock = router.post("http://vllm.test/v1/chat/completions").mock(
-            side_effect=[
-                Response(200, json={"choices": [{"message": {"content": long_summary}, "finish_reason": "stop"}]}),
-                Response(200, json={"choices": [{"message": {"content": compact_summary}, "finish_reason": "stop"}]}),
-            ]
+            return_value=Response(200, json={"choices": [{"message": {"content": long_summary}, "finish_reason": "stop"}]})
         )
 
         response = client.post("/api/v1/search", json={"query": "lenovo thinkpad", "top_k": 5})
@@ -768,9 +764,10 @@ def test_llm_summary_rewrites_to_length_budget_instead_of_cutting(tmp_path: Path
     assert response.status_code == 200
     payload = response.json()
     assert payload["success"] is True
-    assert payload["data"]["summary"] == compact_summary
-    assert len(payload["data"]["summary"]) <= 120
-    assert llm_mock.call_count == 2
+    assert payload["data"]["summary"] == long_summary
+    assert llm_mock.call_count == 1
+    request_payload = llm_mock.calls[0].request.content
+    assert b'"max_tokens":64' in request_payload
 
 
 def test_search_includes_query_planner_analysis_fields(tmp_path: Path) -> None:

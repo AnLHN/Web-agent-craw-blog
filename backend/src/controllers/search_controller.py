@@ -83,6 +83,25 @@ def _validate_search_session(payload: SearchRequest, request: Request, chat_sess
     return None
 
 
+async def _resolve_contextual_query(
+    payload: SearchRequest,
+    chat_session_store,
+    context_query_rewriter_service,
+) -> str:
+    if not payload.session_id:
+        return payload.query
+    session = chat_session_store.get_session(payload.session_id)
+    if not session or not session.messages:
+        return payload.query
+    try:
+        return await context_query_rewriter_service.rewrite(
+            query=payload.query,
+            messages=session.messages,
+        )
+    except Exception:
+        return payload.query
+
+
 def _persist_search_result(payload: SearchRequest, chat_session_store, result) -> None:
     search_result = result.model_dump(mode="json")
     if payload.session_id:
@@ -90,7 +109,10 @@ def _persist_search_result(payload: SearchRequest, chat_session_store, result) -
             session_id=payload.session_id,
             role="user",
             content=payload.query,
-            metadata={"top_k": payload.top_k},
+            metadata={
+                "top_k": payload.top_k,
+                "resolved_query": result.query,
+            },
         )
         chat_session_store.add_message(
             session_id=payload.session_id,
@@ -142,6 +164,7 @@ async def health(request: Request) -> HealthResponse:
 async def search(payload: SearchRequest, request: Request) -> SearchResponse:
     orchestrator = request.app.state.services["orchestrator"]
     chat_session_store = request.app.state.services["chat_session_store"]
+    context_query_rewriter_service = request.app.state.services["context_query_rewriter_service"]
     try:
         session_error = _validate_search_session(payload, request, chat_session_store)
         if session_error:
@@ -152,7 +175,12 @@ async def search(payload: SearchRequest, request: Request) -> SearchResponse:
                 meta=response_meta(),
             )
 
-        result = await orchestrator.search(query=payload.query, top_k=payload.top_k)
+        resolved_query = await _resolve_contextual_query(
+            payload=payload,
+            chat_session_store=chat_session_store,
+            context_query_rewriter_service=context_query_rewriter_service,
+        )
+        result = await orchestrator.search(query=resolved_query, top_k=payload.top_k)
         result.summary = finalize_summary_for_response(
             summary=result.summary,
             query=result.query,
@@ -173,6 +201,7 @@ async def search(payload: SearchRequest, request: Request) -> SearchResponse:
 async def search_stream(payload: SearchRequest, request: Request) -> StreamingResponse:
     orchestrator = request.app.state.services["orchestrator"]
     chat_session_store = request.app.state.services["chat_session_store"]
+    context_query_rewriter_service = request.app.state.services["context_query_rewriter_service"]
 
     async def event_generator():
         queue: asyncio.Queue[tuple[str, dict] | None] = asyncio.Queue()
@@ -188,8 +217,22 @@ async def search_stream(payload: SearchRequest, request: Request) -> StreamingRe
                     return
 
                 await emit("status", {"status": "accepted", "query": payload.query, "top_k": payload.top_k})
+                await emit("status", {"status": "context_rewrite_started"})
+                resolved_query = await _resolve_contextual_query(
+                    payload=payload,
+                    chat_session_store=chat_session_store,
+                    context_query_rewriter_service=context_query_rewriter_service,
+                )
+                await emit(
+                    "status",
+                    {
+                        "status": "context_rewrite_done",
+                        "query": payload.query,
+                        "resolved_query": resolved_query,
+                    },
+                )
                 result = await orchestrator.search_with_events(
-                    query=payload.query,
+                    query=resolved_query,
                     top_k=payload.top_k,
                     emit=emit,
                 )
@@ -198,10 +241,9 @@ async def search_stream(payload: SearchRequest, request: Request) -> StreamingRe
                     query=result.query,
                     sources=result.sources,
                 )
-
                 for chunk in _summary_chunks(result.summary):
                     await emit("token", {"text": chunk})
-                    await asyncio.sleep(0)
+                    await asyncio.sleep(0.03)
 
                 _persist_search_result(payload, chat_session_store, result)
                 await emit(
