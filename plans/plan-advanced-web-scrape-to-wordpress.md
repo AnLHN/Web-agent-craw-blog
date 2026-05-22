@@ -54,6 +54,11 @@ Use case chính:
 - Mọi bài WordPress đi qua bước review trước khi publish.
 - Nếu nguồn có license hạn chế, hệ thống chỉ tạo summary/brief thay vì tái xuất bản dài.
 - Media tải về phải giữ metadata nguồn: original URL, alt text, caption nếu có.
+- Khi Auth/RBAC được triển khai, Article Import cần kiểm permission:
+  - `article:import` cho crawl URL;
+  - `article:translate` cho dịch tiếp;
+  - `article:wordpress_dry_run` cho kiểm tra WordPress tab;
+  - `article:wordpress_paste` cho paste thật vào WordPress, mặc định chỉ admin/operator được cấp quyền.
 
 ## 4. Kiến trúc pipeline đề xuất
 

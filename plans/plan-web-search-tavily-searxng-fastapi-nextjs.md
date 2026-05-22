@@ -201,6 +201,188 @@
 - Skills chính:
   - testing-skill, documentation-skill, logging-skill.
 
+## Phase 7 - Auth, User/Admin và RBAC
+
+- Mục tiêu:
+  - Thêm đăng ký, đăng nhập, đăng xuất và phân quyền `admin` / `user`.
+  - Chuyển các thao tác nhạy cảm như quản lý key, LLM config, Article Import, WordPress paste vào cơ chế quyền rõ ràng.
+  - Tạo nền tảng quản trị user/admin trong DB thay vì phụ thuộc token tĩnh trong env.
+
+### 7.1 DB schema đề xuất
+
+Các bảng chính:
+
+```text
+users
+  id UUID/ULID PK
+  email unique not null
+  username unique nullable
+  full_name nullable
+  password_hash not null
+  status active|disabled|pending_verification
+  is_email_verified bool
+  created_at
+  updated_at
+  last_login_at
+
+roles
+  id PK
+  name unique: admin|user
+  description
+  created_at
+
+user_roles
+  user_id FK users.id
+  role_id FK roles.id
+  unique(user_id, role_id)
+
+permissions
+  id PK
+  code unique
+  description
+
+role_permissions
+  role_id FK roles.id
+  permission_id FK permissions.id
+  unique(role_id, permission_id)
+
+user_sessions
+  id PK
+  user_id FK users.id
+  refresh_token_hash / session_token_hash
+  user_agent
+  ip_address
+  expires_at
+  revoked_at
+  created_at
+
+admin_profiles
+  user_id PK/FK users.id
+  display_name
+  admin_level owner|admin|operator
+  notes
+  created_by nullable FK users.id
+  created_at
+  updated_at
+
+admin_audit_events
+  id PK
+  actor_user_id nullable FK users.id
+  action
+  target_type
+  target_id
+  ip_address
+  user_agent
+  metadata JSON
+  created_at
+```
+
+Bảng `admin_profiles` là bảng quản trị admin riêng: chỉ user có role `admin` mới có profile này. Bảng này lưu metadata quản trị, không thay thế bảng `users`.
+
+### 7.2 Permission codes đề xuất
+
+```text
+search:use
+article:import
+article:translate
+article:wordpress_dry_run
+article:wordpress_paste
+keys:tavily_manage
+llm:config_manage
+ops:audit_read
+admin:users_read
+admin:users_manage
+admin:roles_manage
+admin:system_manage
+```
+
+Role mặc định:
+
+- `user`: `search:use`, `article:import`, `article:translate`, `article:wordpress_dry_run`.
+- `admin`: toàn bộ permission, gồm paste WordPress và quản trị key/user/LLM config.
+
+### 7.3 Backend endpoints đề xuất
+
+```text
+POST /api/v1/auth/register
+POST /api/v1/auth/login
+POST /api/v1/auth/logout
+POST /api/v1/auth/refresh
+GET  /api/v1/auth/me
+PATCH /api/v1/auth/me
+POST /api/v1/auth/change-password
+
+GET  /api/v1/admin/users
+GET  /api/v1/admin/users/{user_id}
+PATCH /api/v1/admin/users/{user_id}
+POST /api/v1/admin/users/{user_id}/roles
+DELETE /api/v1/admin/users/{user_id}/roles/{role}
+GET  /api/v1/admin/audit-events
+```
+
+### 7.4 Frontend pages đề xuất
+
+```text
+/login
+/register
+/account
+/dashboard
+/admin
+/admin/users
+/admin/users/[id]
+/admin/audit
+```
+
+Frontend cần route guard:
+
+- chưa login -> redirect `/login`;
+- thiếu quyền -> hiển thị forbidden state;
+- admin nav chỉ hiện khi có permission admin.
+
+### 7.5 Security requirements
+
+- Hash password bằng Argon2id hoặc bcrypt cost phù hợp.
+- Không lưu token plaintext; refresh/session token phải hash ở DB.
+- Cookie httpOnly + secure + sameSite nếu dùng cookie session.
+- Rate limit login/register/refresh.
+- Audit log cho login failed, role change, user disable, key/LLM config changes, WordPress paste.
+- Không expose password hash/session token qua API.
+- Seed admin đầu tiên qua CLI/env one-time flow, không hardcode credential.
+
+### 7.6 Test/acceptance
+
+- Unit test password hash/verify.
+- API test register/login/me/logout.
+- RBAC test từng permission cho user/admin.
+- Admin users test: list/update role/disable user.
+- Migration test tạo bảng và seed role/permission mặc định.
+- Frontend smoke test route guard login/admin.
+
+## Phase 8 - Production hardening và deploy readiness
+
+- Mục tiêu:
+  - Đưa project từ local/dev-ready lên production-ready có kiểm soát.
+
+Checklist còn thiếu trước production:
+
+1. Dockerfile backend/frontend hoặc Next.js standalone deploy target.
+2. docker-compose production/staging hoặc manifest deploy theo nền tảng chọn.
+3. Alembic migrations cho auth/admin/session/article state quan trọng.
+4. Secret management: GitHub Secrets, cloud secret manager hoặc `.env` ngoài repo.
+5. Rate limiting public API.
+6. CORS/cookie/CSRF policy production.
+7. Structured JSON logs.
+8. Metrics/health checks/readiness checks.
+9. Backup/restore PostgreSQL.
+10. E2E tests cho auth, Article Import, WordPress dry-run/paste.
+11. Security review trước public deploy.
+12. CD workflow riêng sau khi CI pass, dùng GitHub Environments và approval production.
+
+Kết luận trạng thái hiện tại:
+
+- Project đã có nền CI, docs, test backend quan trọng và local automation tốt.
+- Project chưa production-ready hoàn toàn cho public users vì còn thiếu auth/RBAC thật, migrations production, secret management, rate limit, observability và CD deploy.
+
 ## 6 Quy trình bắt buộc cho mỗi phase (theo plan-skill)
 Mỗi phase đều phải đi theo chu trình cố định sau, không được bỏ qua:
 1. Đọc skill cần thiết cho phase đó.

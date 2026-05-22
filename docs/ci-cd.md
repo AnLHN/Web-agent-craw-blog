@@ -125,6 +125,13 @@ Nếu sửa Article Import/crawl blog, nên kiểm tra thêm:
 - Translation partial có thể bấm Translate để resume phần còn thiếu.
 - Dry Run WordPress không paste nội dung; Paste Draft mới paste thật.
 
+Nếu sửa Auth/Admin/RBAC sau này, CI nên có thêm:
+
+- migration test cho bảng `users`, `roles`, `user_roles`, `permissions`, `role_permissions`, `user_sessions`, `admin_profiles`, `admin_audit_events`;
+- API tests cho register/login/logout/me;
+- permission tests cho user/admin;
+- frontend route-guard smoke tests cho `/login`, `/register`, `/admin/users`.
+
 ## Chuẩn branch/PR đề xuất
 
 - `main`: nhánh ổn định, release-ready.
