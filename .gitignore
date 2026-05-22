@@ -10,6 +10,7 @@ backend/.env
 backend/config/tavily_keys.json
 backend/config/llm_runtime.json
 backend/config/audit_logs.jsonl
+backend/config/chat_sessions.json
 backend/data/article_imports/
 
 # Node / Next.js
@@ -20,6 +21,7 @@ frontend/.env.local
 # Logs and local artifacts
 *.log
 logs/
+tmp_*.html
 .DS_Store
 backend/.benchmark_tmp/
 frontend/node_modules_stale/
