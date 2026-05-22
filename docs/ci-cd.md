@@ -140,6 +140,18 @@ Nếu sửa Auth/Admin/RBAC sau này, CI nên có thêm:
 - Pull request phải pass CI trước khi merge.
 - Không commit `.env`, `backend/.env`, `frontend/.env.local`, logs, browser profile, API key, dữ liệu import nhạy cảm.
 
+## Production deliverables theo yêu cầu cấp trên
+
+Khi chuyển sang production, CI/CD nên tạo hoặc kiểm tra các artifact sau:
+
+- **Completion report**: Markdown tổng hợp scope, test result, benchmark, security checklist, known limitations, rollback.
+- **Benchmark report**: Markdown + JSON cho backend latency, search quality/latency, Article Import timings, retry/partial rate.
+- **Pipeline diagrams**: Search pipeline, Article Import pipeline, Auth/RBAC pipeline, Deployment pipeline.
+- **Usage model**: mô tả user thường, admin/operator, system/CI và failure model.
+- **Admin monitoring checklist**: users/roles, audit events, health checks, key/LLM config, Article Import status.
+
+Production gate không pass nếu thiếu auth/RBAC thật, admin monitoring page, migrations, CI green, benchmark report, pipeline diagrams, secret hygiene và security review.
+
 ## Định hướng CD sau này
 
 Khi có staging/production, thêm workflow deploy riêng, ví dụ:

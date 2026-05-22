@@ -362,6 +362,75 @@ Frontend cần route guard:
 
 - Mục tiêu:
   - Đưa project từ local/dev-ready lên production-ready có kiểm soát.
+  - Đáp ứng yêu cầu cấp trên: frontend/backend production, login, admin monitoring, báo cáo hoàn thành, benchmark, sơ đồ pipeline và mô hình sử dụng.
+
+### 8.1 Deliverables bắt buộc khi nghiệm thu production
+
+1. **Frontend production-ready**
+   - Login/register/account pages.
+   - Protected dashboard routes.
+   - Admin pages cho users, roles, audit, system health.
+   - UI trạng thái lỗi/loading/forbidden rõ ràng.
+   - Build production pass và không phụ thuộc dev-only API.
+
+2. **Backend production-ready**
+   - Auth/RBAC middleware/dependencies.
+   - DB migrations cho auth/admin/session/article state.
+   - Health/readiness endpoints.
+   - Rate limit cho auth và public APIs.
+   - Structured logs và audit events.
+   - Không dùng local JSON làm primary store cho production state.
+
+3. **Login/Register/Auth report**
+   - Mô tả luồng register/login/logout/refresh.
+   - Mô tả password hashing, token/session storage, cookie/security policy.
+   - Test report cho auth API và frontend route guard.
+
+4. **Admin monitoring page**
+   - Trang admin giám sát users/admins, audit events, key/LLM config, Article Import status, health checks.
+   - Phân quyền admin/user/operator rõ ràng.
+   - Audit log cho mọi thao tác admin nhạy cảm.
+
+5. **Benchmark report**
+   - Backend API latency: health, search, article import metadata endpoints, auth endpoints.
+   - Search benchmark: query set đại diện, latency p50/p95, success rate, source coverage.
+   - Article Import benchmark: fetch/extract/translate/build draft timings, batch count, retry count, partial rate.
+   - Frontend build metrics: build pass, bundle warning nếu có.
+   - Báo cáo lưu dạng Markdown + JSON artifact nếu chạy trong CI/CD.
+
+6. **Sơ đồ pipeline**
+   - Sơ đồ Search pipeline: query -> rewrite/analyze/plan -> Tavily/SearXNG -> merge -> LLM summary -> response.
+   - Sơ đồ Article Import pipeline: URL -> fetch -> extract -> translate -> draft -> WordPress dry-run/paste.
+   - Sơ đồ Auth/RBAC pipeline: request -> session/JWT -> current user -> permission check -> endpoint.
+   - Sơ đồ Deployment pipeline: push/PR -> CI -> build image -> staging -> approval -> production.
+
+7. **Mô hình sử dụng**
+   - User thường: đăng nhập, search, import article, translate, dry-run.
+   - Admin/operator: quản lý users/roles, keys, LLM config, audit, health, paste WordPress.
+   - System/CI: chạy test, benchmark, build, deploy.
+   - Failure model: quota/rate-limit, provider 500, partial translation, retry/resume, CDP unreachable.
+
+8. **Báo cáo hoàn thành**
+   - Tóm tắt scope đã làm/chưa làm.
+   - Test results.
+   - Benchmark results.
+   - Security checklist.
+   - Known limitations.
+   - Hướng dẫn vận hành và rollback.
+
+### 8.2 Production acceptance gate
+
+Không được gọi là production-ready nếu thiếu một trong các mục sau:
+
+- Auth/RBAC thật hoạt động end-to-end.
+- Admin page có thể giám sát users/audit/system health.
+- DB migration chạy được từ database rỗng.
+- CI pass backend/frontend.
+- Benchmark report được tạo và lưu.
+- Pipeline diagrams được cập nhật trong docs.
+- Secrets không nằm trong repo.
+- Security review không còn blocker mức high/critical.
+
 
 Checklist còn thiếu trước production:
 
