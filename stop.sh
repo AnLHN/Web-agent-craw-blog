@@ -7,8 +7,10 @@ ROOT_ENV_FILE="$ROOT_DIR/.env"
 LOG_DIR="$ROOT_DIR/logs"
 BACKEND_PID_FILE="$LOG_DIR/backend.pid"
 FRONTEND_PID_FILE="$LOG_DIR/frontend.pid"
+NINEROUTER_PID_FILE="$LOG_DIR/9router.pid"
 BACKEND_PORT="8011"
 FRONTEND_PORT="3005"
+NINEROUTER_DASHBOARD_URL="http://localhost:20128/dashboard"
 
 log() {
   echo "[stop] $*"
@@ -25,6 +27,7 @@ load_env() {
   fi
   BACKEND_PORT="${BACKEND_PORT:-8011}"
   FRONTEND_PORT="${FRONTEND_PORT:-3005}"
+  NINEROUTER_DASHBOARD_URL="${NINEROUTER_DASHBOARD_URL:-http://localhost:20128/dashboard}"
 }
 
 stop_by_pid_file() {
@@ -111,16 +114,19 @@ main() {
   load_env
   stop_by_pid_file "backend" "$BACKEND_PID_FILE"
   stop_by_pid_file "frontend" "$FRONTEND_PID_FILE"
+  stop_by_pid_file "9router" "$NINEROUTER_PID_FILE"
   local uname_s
   uname_s="$(uname -s)"
   if [[ "$uname_s" == MINGW* || "$uname_s" == MSYS* || "$uname_s" == CYGWIN* ]]; then
     stop_by_port_windows "$BACKEND_PORT"
     stop_by_port_windows "$FRONTEND_PORT"
+    stop_by_port_windows "$(echo "$NINEROUTER_DASHBOARD_URL" | sed -n 's#.*:\([0-9][0-9]*\).*#\1#p')"
     warn_if_port_still_listening_windows "$BACKEND_PORT"
     warn_if_port_still_listening_windows "$FRONTEND_PORT"
   else
     stop_by_port_unix "$BACKEND_PORT"
     stop_by_port_unix "$FRONTEND_PORT"
+    stop_by_port_unix "$(echo "$NINEROUTER_DASHBOARD_URL" | sed -n 's#.*:\([0-9][0-9]*\).*#\1#p')"
   fi
   stop_project_processes_windows_fallback
 }

@@ -1,6 +1,8 @@
 import {
   AuditLogData,
   ApiResponse,
+  ArticleImportData,
+  ArticleLlmHealthData,
   ChatSessionData,
   ChatSessionListData,
   LlmHealthData,
@@ -27,8 +29,22 @@ function opsHeaders(): Record<string, string> {
 }
 
 async function parseJson<T>(response: Response): Promise<T> {
-  const payload = (await response.json()) as T;
-  return payload;
+  const raw = await response.text();
+  const trimmed = raw.trim();
+
+  if (!trimmed) {
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} ${response.statusText}`.trim());
+    }
+    throw new Error("Backend returned an empty response.");
+  }
+
+  try {
+    return JSON.parse(trimmed) as T;
+  } catch {
+    const snippet = trimmed.slice(0, 160);
+    throw new Error(`Backend returned non-JSON response (HTTP ${response.status}): ${snippet}`);
+  }
 }
 
 export async function searchWeb(
@@ -327,4 +343,61 @@ export async function fetchAuditLogs(limit = 50): Promise<ApiResponse<AuditLogDa
     cache: "no-store",
   });
   return parseJson<ApiResponse<AuditLogData>>(response);
+}
+
+export async function importArticle(payload: {
+  url: string;
+  mode?: "draft" | "preview";
+  target_language?: string;
+  glossary_key?: string;
+  wordpress_target_url?: string;
+  async_mode?: boolean;
+}): Promise<ApiResponse<ArticleImportData>> {
+  const response = await fetch(`${API_BASE}/articles/import`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  return parseJson<ApiResponse<ArticleImportData>>(response);
+}
+
+export async function fetchArticleImport(runId: string): Promise<ApiResponse<ArticleImportData>> {
+  const response = await fetch(`${API_BASE}/articles/import/${runId}`, {
+    method: "GET",
+    cache: "no-store",
+  });
+  return parseJson<ApiResponse<ArticleImportData>>(response);
+}
+
+export async function dryRunWordPressImport(runId: string): Promise<ApiResponse<ArticleImportData>> {
+  const response = await fetch(`${API_BASE}/articles/import/${runId}/wordpress/dry-run`, {
+    method: "POST",
+    cache: "no-store",
+  });
+  return parseJson<ApiResponse<ArticleImportData>>(response);
+}
+
+export async function translateArticleImport(runId: string): Promise<ApiResponse<ArticleImportData>> {
+  const response = await fetch(`${API_BASE}/articles/import/${runId}/translate`, {
+    method: "POST",
+    cache: "no-store",
+  });
+  return parseJson<ApiResponse<ArticleImportData>>(response);
+}
+
+export async function pasteWordPressImport(runId: string): Promise<ApiResponse<ArticleImportData>> {
+  const response = await fetch(`${API_BASE}/articles/import/${runId}/wordpress/paste`, {
+    method: "POST",
+    cache: "no-store",
+  });
+  return parseJson<ApiResponse<ArticleImportData>>(response);
+}
+
+export async function checkArticleLlmHealth(): Promise<ApiResponse<ArticleLlmHealthData>> {
+  const response = await fetch(`${API_BASE}/articles/import/llm/health`, {
+    method: "POST",
+    cache: "no-store",
+  });
+  return parseJson<ApiResponse<ArticleLlmHealthData>>(response);
 }

@@ -5,6 +5,7 @@ $EnvFile = Join-Path $RootDir ".env"
 $LogDir = Join-Path $RootDir "logs"
 $BackendPidFile = Join-Path $LogDir "backend.pid"
 $FrontendPidFile = Join-Path $LogDir "frontend.pid"
+$NineRouterPidFile = Join-Path $LogDir "9router.pid"
 
 function Get-EnvMap {
     param([string]$Path)
@@ -58,6 +59,16 @@ function Resolve-NpmCommand {
     return $null
 }
 
+function Resolve-NineRouterCommand {
+    $cmd = Get-Command 9router.cmd -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    $cmd = Get-Command 9router -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    $candidate = Join-Path $env:APPDATA "npm\9router.cmd"
+    if (Test-Path $candidate) { return $candidate }
+    return $null
+}
+
 function Stop-ExistingPid {
     param([string]$PidFile)
     if (-not (Test-Path $PidFile)) { return }
@@ -86,6 +97,9 @@ $BackendHost = Get-EnvValue $envMap "BACKEND_HOST" "127.0.0.1"
 $BackendPort = Get-EnvValue $envMap "BACKEND_PORT" "8011"
 $FrontendHost = Get-EnvValue $envMap "FRONTEND_HOST" "0.0.0.0"
 $FrontendPort = Get-EnvValue $envMap "FRONTEND_PORT" "3005"
+$NineRouterAutoStart = Get-EnvValue $envMap "NINEROUTER_AUTO_START" "true"
+$NineRouterStartMode = Get-EnvValue $envMap "NINEROUTER_START_MODE" "terminal"
+$NineRouterDashboardUrl = Get-EnvValue $envMap "NINEROUTER_DASHBOARD_URL" "http://localhost:20128/dashboard"
 
 $PythonExe = Join-Path $RootDir ".venv\Scripts\python.exe"
 if (-not (Test-Path $PythonExe)) {
@@ -103,7 +117,35 @@ Stop-ExistingPid $FrontendPidFile
 Stop-ByPort $BackendPort
 Stop-ByPort $FrontendPort
 
-$backendArgs = "-m uvicorn src.main:app --reload --host $BackendHost --port $BackendPort"
+if (@("1", "true", "yes", "y", "on") -contains $NineRouterAutoStart.ToLower()) {
+    $nineRouterCmd = Resolve-NineRouterCommand
+    if ($nineRouterCmd) {
+        $shouldStartNineRouter = $true
+        try {
+            $uri = [Uri]$NineRouterDashboardUrl
+            $listener = Get-NetTCPConnection -State Listen -LocalPort $uri.Port -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($listener) { $shouldStartNineRouter = $false }
+        } catch {}
+        if ($shouldStartNineRouter) {
+            if ($NineRouterStartMode.ToLower() -eq "terminal") {
+                $terminalCommand = "`$host.UI.RawUI.WindowTitle='web-agent-9router'; & '$($nineRouterCmd.Replace("'", "''"))'"
+                $nine = Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoExit", "-ExecutionPolicy", "Bypass", "-Command", $terminalCommand) -WorkingDirectory $RootDir -PassThru
+            } else {
+                $nineOutLog = Join-Path $LogDir "9router.out.log"
+                $nineErrLog = Join-Path $LogDir "9router.err.log"
+                $nine = Start-Process -FilePath $nineRouterCmd -WorkingDirectory $RootDir -RedirectStandardOutput $nineOutLog -RedirectStandardError $nineErrLog -WindowStyle Hidden -PassThru
+            }
+            Set-Content -Path $NineRouterPidFile -Value $nine.Id -Encoding ascii
+            Write-Host "[run] 9Router:  $NineRouterDashboardUrl pid=$($nine.Id)"
+        } else {
+            Write-Host "[run] 9Router:  $NineRouterDashboardUrl already running"
+        }
+    } else {
+        Write-Host "[run][warn] Khong tim thay 9router. Hay chay .\setup.ps1 de cai."
+    }
+}
+
+$backendArgs = "-m uvicorn src.main:app --host $BackendHost --port $BackendPort"
 $backendOutLog = Join-Path $LogDir "backend.dev.out.log"
 $backendErrLog = Join-Path $LogDir "backend.dev.err.log"
 $backend = Start-Process -FilePath $PythonExe -ArgumentList $backendArgs -WorkingDirectory (Join-Path $RootDir "backend") -RedirectStandardOutput $backendOutLog -RedirectStandardError $backendErrLog -WindowStyle Hidden -PassThru
@@ -121,5 +163,6 @@ Set-Content -Path $FrontendPidFile -Value $frontend.Id -Encoding ascii
 
 Write-Host "[run] Backend:  http://$BackendHost`:$BackendPort"
 Write-Host "[run] Frontend: http://localhost:$FrontendPort"
+Write-Host "[run] 9Router:  $NineRouterDashboardUrl"
 Write-Host "[run] npm:      $NpmCmd"
 Write-Host "[run] Logs:     $LogDir"

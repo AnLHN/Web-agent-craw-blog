@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import List, Optional
 
-from pydantic import Field, field_validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
@@ -65,6 +65,7 @@ class Settings(BaseSettings):
     feature_session_history: bool = True
     feature_ops_dashboard: bool = True
     feature_llm_runtime_config: bool = True
+    feature_article_import: bool = True
     pipeline_mode: str = "multi_agent_balanced"
     max_sub_queries: int = 4
     planner_simple_budget: int = 2
@@ -74,6 +75,34 @@ class Settings(BaseSettings):
     subquery_timeout_seconds: float = 2.2
     quality_gate_min_coverage_sources: int = 2
     quality_gate_max_extra_rounds: int = 1
+    article_import_storage_path: str = "data/article_imports"
+    article_llm_provider: str = "9router_openai"
+    ninerouter_api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("APP_9ROUTER_API_KEY", "APP_NINEROUTER_API_KEY", "ninerouter_api_key"),
+    )
+    ninerouter_base_url: str = Field(
+        default="",
+        validation_alias=AliasChoices("APP_9ROUTER_BASE_URL", "APP_NINEROUTER_BASE_URL", "ninerouter_base_url"),
+    )
+    article_openai_model: str = Field(
+        default="cx/gpt-5.5",
+        validation_alias=AliasChoices(
+            "APP_ARTICLE_OPENAI_MODEL",
+            "APP_ARTICLE_CODEX_MODEL",
+            "APP_ARTICLE_GEMINI_MODEL",
+            "article_openai_model",
+        ),
+    )
+    article_translation_max_output_tokens: int = 8000
+    article_translation_max_batches_per_run: int = 6
+    article_translation_batch_size: int = 3
+    article_translation_max_batch_chars: int = 8000
+    article_fetch_user_agent: str = "WebAgentArticleImporter/0.1 (+https://localhost)"
+    article_asset_max_bytes: int = 8 * 1024 * 1024
+    article_allow_private_urls: bool = False
+    wordpress_chrome_cdp_url: str = "http://127.0.0.1:9227"
+    wordpress_admin_url: str = ""
 
     @field_validator("llm_max_tokens", mode="before")
     @classmethod

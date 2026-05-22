@@ -55,6 +55,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1
 - tạo `frontend/.env.local` nếu chưa có;
 - đồng bộ CORS, API proxy và feature flags;
 - tạo local config files trong `backend/config`;
+- tự cài/start 9Router nếu bật `NINEROUTER_INSTALL=true` và `NINEROUTER_AUTO_START=true`;
+- tự mở Chrome/Brave/Edge CDP cho WordPress nếu `WP_CHROME_AUTO_START=true`;
 - tự start PostgreSQL, pgAdmin, SearXNG nếu bật trong root `.env`;
 - tự start backend/frontend nếu `AUTO_START_APPS=true`.
 
@@ -76,6 +78,38 @@ Mặc định:
 
 - Backend: `http://127.0.0.1:8011`
 - Frontend: `http://localhost:3005`
+
+## Article Import / WordPress automation
+
+Nếu dùng chức năng crawl blog và paste WordPress, cấu hình root `.env`:
+
+```env
+NINEROUTER_INSTALL=true
+NINEROUTER_AUTO_START=true
+NINEROUTER_BASE_URL=http://127.0.0.1:20128/v1
+NINEROUTER_DASHBOARD_URL=http://localhost:20128/dashboard
+WP_CHROME_AUTO_START=true
+WP_CHROME_PORT=9227
+WP_CHROME_URL=https://your-site.com/wp-admin/post-new.php
+```
+
+Cấu hình `backend/.env`:
+
+```env
+APP_ARTICLE_LLM_PROVIDER=9router_openai
+APP_9ROUTER_BASE_URL=http://127.0.0.1:20128/v1
+APP_9ROUTER_API_KEY=YOUR_9ROUTER_KEY
+APP_ARTICLE_OPENAI_MODEL=cx/gpt-5.5
+APP_WORDPRESS_CHROME_CDP_URL=http://127.0.0.1:9227
+```
+
+Mở browser CDP thủ công trên Windows nếu cần:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\start_wp_chrome.ps1 -Port 9227 -Url "https://your-site.com/wp-admin/post-new.php"
+```
+
+Dry Run chỉ kiểm tra kết nối/tab WordPress; Paste Draft mới đưa nội dung vào editor.
 
 ## Thêm Tavily API key
 

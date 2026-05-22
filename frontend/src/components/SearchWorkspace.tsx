@@ -15,11 +15,13 @@ import {
 import { ChatSession, SearchData, SearchStreamStatusEvent, TavilyKeyInfo } from "@/types/api";
 import { prettyDate } from "@/utils/date";
 
+import { ArticleImportPanel } from "./ArticleImportPanel";
 import { KeyManager } from "./KeyManager";
 import { OpsDashboard } from "./OpsDashboard";
 import { PromptManagerPanel } from "./PromptManagerPopup";
 import { SearchResultPanel } from "./SearchResultPanel";
 
+type WorkspaceMode = "web-search" | "article-import";
 type TabKey = "tavily-keys" | "ops" | "prompts";
 
 type NavItem = {
@@ -87,6 +89,7 @@ export function SearchWorkspace() {
   const featureLlmRuntimeConfig =
     (process.env.NEXT_PUBLIC_FEATURE_LLM_RUNTIME_CONFIG || "true").toLowerCase() !== "false";
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>("web-search");
   const [activeTab, setActiveTab] = useState<TabKey>("tavily-keys");
   const [query, setQuery] = useState("");
   const [topK, setTopK] = useState(5);
@@ -399,66 +402,104 @@ export function SearchWorkspace() {
 
     return (
       <aside className="flex h-screen min-h-0 flex-col border-r border-blue-950/30 bg-[#102a56] text-blue-50">
-        <div className="border-b border-white/10 p-3">
-          <button
-            type="button"
-            onClick={() => {
-              void handleCreateSession();
-            }}
-            className="w-full rounded-xl border border-white/15 bg-white/8 px-3 py-2 text-left text-sm font-medium text-white shadow-sm hover:bg-white/14"
-          >
-            Chat mới
-          </button>
+        <div className="space-y-3 border-b border-white/10 p-3">
+          <div className="grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-blue-950/25 p-1">
+            <button
+              type="button"
+              onClick={() => setWorkspaceMode("web-search")}
+              className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
+                workspaceMode === "web-search"
+                  ? "bg-white text-blue-950 shadow-sm"
+                  : "text-blue-100 hover:bg-white/10"
+              }`}
+            >
+              Web Search
+            </button>
+            <button
+              type="button"
+              onClick={() => setWorkspaceMode("article-import")}
+              className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
+                workspaceMode === "article-import"
+                  ? "bg-orange-300 text-blue-950 shadow-sm"
+                  : "text-blue-100 hover:bg-white/10"
+              }`}
+            >
+              Viết blog
+            </button>
+          </div>
+
+          {workspaceMode === "web-search" ? (
+            <button
+              type="button"
+              onClick={() => {
+                void handleCreateSession();
+              }}
+              className="w-full rounded-xl border border-white/15 bg-white/8 px-3 py-2 text-left text-sm font-medium text-white shadow-sm hover:bg-white/14"
+            >
+              Chat mới
+            </button>
+          ) : null}
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
-          <p className="px-2 text-[11px] font-semibold uppercase text-blue-200/70">Lịch sử chat</p>
-          {sessionError ? <p className="mt-2 px-2 text-xs text-orange-200">{sessionError}</p> : null}
-          {isLoadingSessions ? <p className="mt-2 px-2 text-xs text-blue-100/60">Loading...</p> : null}
-          <div className="mt-2 space-y-1">
-            {sessions.map((session) => {
-              const isActive = currentSessionId === session.id;
-              return (
-                <div
-                  key={session.id}
-                  className={`group rounded-xl transition ${
-                    isActive ? "bg-white text-blue-950 shadow-sm" : "hover:bg-white/10"
-                  }`}
-                >
-                  <button
-                    type="button"
-                  onClick={() => {
-                    resetChatDraftAndResult();
-                    setCurrentSessionId(session.id);
-                    void loadSessionDetail(session.id);
-                  }}
-                    className="w-full px-2 py-2 text-left"
-                  >
-                    <p className="line-clamp-1 text-sm font-medium">{session.title}</p>
-                    <p className={`mt-0.5 text-[11px] ${isActive ? "text-blue-700" : "text-blue-100/55"}`}>
-                      {prettyDate(session.last_message_at)} | {session.message_count} msgs
-                    </p>
-                  </button>
-                  <div className="hidden gap-1 px-2 pb-2 group-hover:flex">
-                    <button
-                      type="button"
-                      onClick={() => void handleDeleteSession(session.id)}
-                      className={`rounded-lg border px-2 py-1 text-[11px] ${
-                        isActive
-                          ? "border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100"
-                          : "border-orange-300/30 text-orange-100 hover:bg-orange-900/30"
+          {workspaceMode === "web-search" ? (
+            <>
+              <p className="px-2 text-[11px] font-semibold uppercase text-blue-200/70">Lịch sử chat</p>
+              {sessionError ? <p className="mt-2 px-2 text-xs text-orange-200">{sessionError}</p> : null}
+              {isLoadingSessions ? <p className="mt-2 px-2 text-xs text-blue-100/60">Loading...</p> : null}
+              <div className="mt-2 space-y-1">
+                {sessions.map((session) => {
+                  const isActive = currentSessionId === session.id;
+                  return (
+                    <div
+                      key={session.id}
+                      className={`group rounded-xl transition ${
+                        isActive ? "bg-white text-blue-950 shadow-sm" : "hover:bg-white/10"
                       }`}
                     >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-            {!isLoadingSessions && sessions.length === 0 ? (
-              <p className="px-2 py-2 text-xs text-blue-100/55">Chưa có lịch sử chat.</p>
-            ) : null}
-          </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          resetChatDraftAndResult();
+                          setCurrentSessionId(session.id);
+                          void loadSessionDetail(session.id);
+                        }}
+                        className="w-full px-2 py-2 text-left"
+                      >
+                        <p className="line-clamp-1 text-sm font-medium">{session.title}</p>
+                        <p className={`mt-0.5 text-[11px] ${isActive ? "text-blue-700" : "text-blue-100/55"}`}>
+                          {prettyDate(session.last_message_at)} | {session.message_count} msgs
+                        </p>
+                      </button>
+                      <div className="hidden gap-1 px-2 pb-2 group-hover:flex">
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteSession(session.id)}
+                          className={`rounded-lg border px-2 py-1 text-[11px] ${
+                            isActive
+                              ? "border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100"
+                              : "border-orange-300/30 text-orange-100 hover:bg-orange-900/30"
+                          }`}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+                {!isLoadingSessions && sessions.length === 0 ? (
+                  <p className="px-2 py-2 text-xs text-blue-100/55">Chưa có lịch sử chat.</p>
+                ) : null}
+              </div>
+            </>
+          ) : (
+            <div className="rounded-2xl border border-white/10 bg-white/8 px-3 py-3">
+              <p className="text-sm font-semibold text-white">Article Import</p>
+              <p className="mt-1 text-xs leading-5 text-blue-100/65">
+                Nhập URL nguồn, tách block, tải ảnh, tạo draft và đẩy sang WordPress.
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="border-t border-white/10 p-3">
@@ -614,10 +655,41 @@ export function SearchWorkspace() {
     );
   }
 
+  function renderArticleImportWorkspace() {
+    return (
+      <div className="flex h-screen min-h-0 flex-col bg-[#f5f9ff]">
+        <header className="flex items-center justify-between border-b border-blue-100 bg-white/90 px-4 py-3 backdrop-blur">
+          <div className="min-w-0">
+            <h1 className="truncate text-base font-semibold text-stone-900">Article Import</h1>
+            <p className="truncate text-xs text-blue-700/70">Cào dữ liệu và dựng bài WordPress</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSettingsOpen(true)}
+            className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-800 shadow-sm hover:bg-orange-50"
+          >
+            Cài đặt
+          </button>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-5 md:px-8">
+          <div className="mx-auto w-full max-w-6xl min-w-0">
+            <ArticleImportPanel />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <main className={`grid min-h-screen ${featureSessionHistory ? "md:grid-cols-[280px_1fr]" : ""}`}>
       {renderSessionSidebar()}
-      <section className="min-w-0">{renderChatWorkspace()}</section>
+      <section className="min-w-0 overflow-x-hidden">
+        <div className={workspaceMode === "web-search" ? "block" : "hidden"}>{renderChatWorkspace()}</div>
+        <div className={workspaceMode === "article-import" ? "block" : "hidden"}>
+          {renderArticleImportWorkspace()}
+        </div>
+      </section>
       {renderSettingsModal()}
     </main>
   );

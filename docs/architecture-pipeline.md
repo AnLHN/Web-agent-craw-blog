@@ -55,6 +55,8 @@ Thư mục: `backend/`
 - PostgreSQL: lưu session/search trace.
 - pgAdmin: quản trị DB local.
 - SearXNG: fallback search local ổn định hơn public instances.
+- 9Router: OpenAI-compatible router cho Article Import translation.
+- Chrome/Brave/Edge CDP: browser profile riêng để kiểm tra/paste draft vào WordPress.
 
 ## Pipeline xử lý
 
@@ -199,6 +201,56 @@ Lưu ý quan trọng:
 - `max_tokens` là token budget, không phải ký tự.
 - `summary_max_tokens` là target độ dài phần tóm tắt cuối theo token.
 - Không nên cắt output bằng số ký tự nếu mục tiêu là kiểm soát theo token.
+
+## Article Import / Craw Blog pipeline
+
+Endpoint chính:
+
+- `POST /api/v1/articles/import`
+- `POST /api/v1/articles/import/{run_id}/translate`
+- `POST /api/v1/articles/import/{run_id}/wordpress/dry-run`
+- `POST /api/v1/articles/import/{run_id}/wordpress/paste`
+
+Luồng xử lý:
+
+```text
+URL bài viết
+  -> ArticleFetcherService
+  -> ArticleExtractorService
+      -> heading / paragraph / quote / list / table / code / image / embed
+      -> link placeholders [LINK_n:label]
+  -> ArticleAssetService tải ảnh
+  -> ArticleTranslationService
+      -> chỉ dịch block chưa có translated_text
+      -> batch nhỏ theo block count và max chars
+      -> retry transient 429/500/502/503/504/timeout
+      -> partial + resume nếu provider quá tải
+  -> WordPressDraftBuilder
+      -> render HTML
+      -> khôi phục [LINK_n:label] thành <a href="...">label</a>
+  -> WordPressAutomationService
+      -> dry-run kiểm tra tab WordPress qua CDP
+      -> paste draft khi người dùng bấm Paste Draft
+```
+
+Extractor coverage hiện tại:
+
+- `h1`-`h6`: heading.
+- `p`: paragraph.
+- `blockquote`: quote.
+- `ul`/`ol`: list block; `li` rời có fallback paragraph.
+- `pre`: code block thật.
+- `code`: inline code, giữ trong paragraph/list, không tách thành code block riêng.
+- `figure`, `figcaption`, `img`: image + caption.
+- `iframe`, `video`: embed.
+- `table`: table block.
+- `a`: link được thay bằng placeholder `[LINK_n:label]` trong text để sống qua dịch.
+
+Translation provider:
+
+- Provider metadata: `9router_openai`.
+- Model mặc định: `cx/gpt-5.5`.
+- Prompt yêu cầu giữ `LINK_n`, giữ inline code/API/model names trong câu, chỉ copy nguyên source cho code block thật.
 
 ## SSE streaming
 

@@ -5,6 +5,7 @@ $EnvFile = Join-Path $RootDir ".env"
 $LogDir = Join-Path $RootDir "logs"
 $BackendPidFile = Join-Path $LogDir "backend.pid"
 $FrontendPidFile = Join-Path $LogDir "frontend.pid"
+$NineRouterPidFile = Join-Path $LogDir "9router.pid"
 
 function Get-EnvMap {
     param([string]$Path)
@@ -52,11 +53,17 @@ function Stop-ByPort {
 $envMap = Get-EnvMap $EnvFile
 $BackendPort = Get-EnvValue $envMap "BACKEND_PORT" "8011"
 $FrontendPort = Get-EnvValue $envMap "FRONTEND_PORT" "3005"
+$NineRouterDashboardUrl = Get-EnvValue $envMap "NINEROUTER_DASHBOARD_URL" "http://localhost:20128/dashboard"
 
 Stop-ByPidFile "backend" $BackendPidFile
 Stop-ByPidFile "frontend" $FrontendPidFile
+Stop-ByPidFile "9router" $NineRouterPidFile
 Stop-ByPort $BackendPort
 Stop-ByPort $FrontendPort
+try {
+    $nineRouterPort = ([Uri]$NineRouterDashboardUrl).Port
+    if ($nineRouterPort -gt 0) { Stop-ByPort $nineRouterPort }
+} catch {}
 
 Get-CimInstance Win32_Process |
     Where-Object {

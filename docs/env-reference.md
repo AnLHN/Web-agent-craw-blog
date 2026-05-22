@@ -74,6 +74,17 @@ curl http://127.0.0.1:8007/v1/models
 - `SEARXNG_FORCE_RECREATE`: xoá container cũ và tạo lại.
 - `SEARXNG_PORT`: port public, mặc định `8080`.
 
+### 9Router và WordPress browser CDP
+
+- `NINEROUTER_INSTALL`: tự cài `9router` global bằng npm khi setup.
+- `NINEROUTER_AUTO_START`: tự start 9Router khi setup.
+- `NINEROUTER_START_MODE`: `terminal` hoặc background.
+- `NINEROUTER_BASE_URL`: mặc định `http://127.0.0.1:20128/v1`.
+- `NINEROUTER_DASHBOARD_URL`: mặc định `http://localhost:20128/dashboard`.
+- `WP_CHROME_AUTO_START`: tự mở Chrome/Brave/Edge với CDP port riêng cho WordPress automation.
+- `WP_CHROME_PORT`: mặc định `9227`.
+- `WP_CHROME_URL`: URL mở sẵn, ví dụ trang tạo bài WordPress.
+
 ## `backend/.env`
 
 Các biến backend dùng prefix `APP_`.
@@ -167,6 +178,21 @@ Lưu ý:
 - `APP_SEARXNG_MAX_QPS`
 - `APP_SEARXNG_CIRCUIT_FAIL_THRESHOLD`
 - `APP_SEARXNG_CIRCUIT_OPEN_SECONDS`
+
+### Article Import / Craw Blog
+
+- `APP_ARTICLE_LLM_PROVIDER`: provider metadata, mặc định `9router_openai`.
+- `APP_9ROUTER_BASE_URL`: OpenAI-compatible base URL của 9Router, mặc định `http://127.0.0.1:20128/v1`.
+- `APP_9ROUTER_API_KEY`: key gửi tới 9Router nếu router yêu cầu auth. Không commit key thật.
+- `APP_ARTICLE_OPENAI_MODEL`: model ID trong 9Router, mặc định `cx/gpt-5.5`.
+- `APP_ARTICLE_TRANSLATION_MAX_OUTPUT_TOKENS`: output token budget mỗi request dịch, mặc định `8000`.
+- `APP_ARTICLE_TRANSLATION_MAX_BATCHES_PER_RUN`: số batch tối đa mỗi lần import/translate trước khi pause.
+- `APP_ARTICLE_TRANSLATION_BATCH_SIZE`: số block tối đa mỗi batch, mặc định `3`.
+- `APP_ARTICLE_TRANSLATION_MAX_BATCH_CHARS`: tổng ký tự source tối đa mỗi batch, mặc định `8000`.
+- `APP_ARTICLE_IMPORT_STORAGE_PATH`: nơi lưu raw/extracted/draft artifacts.
+- `APP_WORDPRESS_CHROME_CDP_URL`: CDP endpoint browser WordPress, mặc định `http://127.0.0.1:9227`.
+
+Extractor hiện giữ link bằng placeholder `[LINK_n:label]` trong `source_text`. Model phải giữ `LINK_n`, được phép dịch label; draft builder render lại thành anchor HTML.
 
 ## Runtime LLM config
 

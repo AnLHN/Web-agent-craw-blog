@@ -1,6 +1,12 @@
-﻿# CI/CD
+# CI/CD
 
-Dự án hiện có CI bằng GitHub Actions. CD chưa bật vì chưa có môi trường deploy chính thức.
+Dự án dùng GitHub Actions cho CI. Repository mục tiêu:
+
+```text
+https://github.com/AnLHN/Web-agent-craw-blog.git
+```
+
+CD chưa bật vì chưa có môi trường deploy chính thức. Khi có staging/production, nên thêm workflow deploy riêng thay vì trộn vào CI.
 
 ## Workflow hiện tại
 
@@ -19,7 +25,7 @@ Concurrency:
 
 ## Backend job
 
-Mục tiêu: đảm bảo FastAPI backend cài được dependencies và test pass.
+Mục tiêu: đảm bảo FastAPI backend cài được dependencies và toàn bộ test backend pass.
 
 Các bước:
 
@@ -39,6 +45,8 @@ pip install -e "./backend[dev]"
 cd backend
 pytest -q
 ```
+
+Backend tests phải mock external services hoặc dùng fixture local. Không gọi Tavily, 9Router, LLM thật, WordPress thật trong CI.
 
 ## Frontend job
 
@@ -79,16 +87,27 @@ Frontend job set các biến tối thiểu:
 - `NEXT_PUBLIC_FEATURE_OPS_DASHBOARD=true`
 - `NEXT_PUBLIC_FEATURE_LLM_RUNTIME_CONFIG=true`
 
-Backend tests nên mock hoặc tránh phụ thuộc service ngoài như Tavily/LLM thật.
+Backend tests nên dùng default/test settings và không phụ thuộc service ngoài.
+
+Không đưa secret thật vào workflow YAML. Nếu sau này cần integration/smoke test có secret, dùng GitHub Secrets và Environment protection.
 
 ## Quy tắc trước khi mở PR
 
-Nên chạy local:
+Chạy local backend:
 
 ```bash
 cd backend
 ../.venv/Scripts/python.exe -m pytest -q
 ```
+
+Linux/macOS:
+
+```bash
+cd backend
+../.venv/bin/python -m pytest -q
+```
+
+Chạy local frontend:
 
 ```bash
 cd frontend
@@ -96,26 +115,41 @@ npm run lint
 npm run build
 ```
 
-Trên Linux/macOS đổi Python path thành `../.venv/bin/python`.
+Nếu sửa Article Import/crawl blog, nên kiểm tra thêm:
+
+- Import URL mới sau khi restart backend.
+- List/bullet được extract thành `<ul>/<ol>`.
+- Link trong paragraph/quote/list được giữ qua placeholder `[LINK_n:label]` và render lại thành `<a>`.
+- Inline code không bị tách thành `<pre><code>`.
+- Code block thật vẫn giữ nguyên.
+- Translation partial có thể bấm Translate để resume phần còn thiếu.
+- Dry Run WordPress không paste nội dung; Paste Draft mới paste thật.
+
+## Chuẩn branch/PR đề xuất
+
+- `main`: nhánh ổn định, release-ready.
+- `develop`: tích hợp tính năng trước khi lên `main` nếu cần.
+- `feature/<short-name>`: tính năng/sửa lỗi.
+- Pull request phải pass CI trước khi merge.
+- Không commit `.env`, `backend/.env`, `frontend/.env.local`, logs, browser profile, API key, dữ liệu import nhạy cảm.
 
 ## Định hướng CD sau này
 
-Khi có staging/production, nên thêm workflow deploy riêng thay vì trộn vào CI.
-
-Gợi ý pipeline:
+Khi có staging/production, thêm workflow deploy riêng, ví dụ:
 
 1. CI pass trên pull request.
-2. Merge vào `develop` deploy lên staging.
+2. Merge vào `develop` deploy staging.
 3. Merge/tag release trên `main` deploy production.
 4. Dùng GitHub Environments để yêu cầu approval trước production.
-5. Dùng GitHub Secrets cho token, database URL, model endpoint, Tavily key.
+5. Dùng GitHub Secrets cho token, database URL, model endpoint, 9Router/Tavily key nếu cần.
 
-Secrets nên có:
+Secrets thường cần:
 
-- `TAVILY_API_KEY` hoặc secret store tương ứng.
-- `LLM_BASE_URL` nếu deploy cần gọi model remote.
 - `DATABASE_URL` cho PostgreSQL production.
-- deploy credentials theo nền tảng triển khai.
+- `LLM_BASE_URL` hoặc endpoint model production.
+- `TAVILY_API_KEY` hoặc secret store tương ứng.
+- `NINEROUTER_API_KEY` / provider key nếu chạy Article Import trên server.
+- Deploy credentials theo nền tảng triển khai.
 
 ## Checklist CD đề xuất
 
@@ -126,4 +160,6 @@ Secrets nên có:
 - Deploy backend.
 - Deploy frontend.
 - Health check `/api/v1/health`.
-- Smoke test search endpoint với provider mock hoặc key staging.
+- Smoke test search endpoint bằng provider mock/staging key.
+- Smoke test Article Import với trang fixture hoặc URL staging.
+- Kiểm tra WordPress automation chỉ chạy trong môi trường có browser CDP được cấu hình rõ ràng.

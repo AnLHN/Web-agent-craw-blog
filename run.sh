@@ -7,11 +7,15 @@ ROOT_ENV_FILE="$ROOT_DIR/.env"
 LOG_DIR="$ROOT_DIR/logs"
 BACKEND_PID_FILE="$LOG_DIR/backend.pid"
 FRONTEND_PID_FILE="$LOG_DIR/frontend.pid"
+NINEROUTER_PID_FILE="$LOG_DIR/9router.pid"
 
 BACKEND_HOST="127.0.0.1"
 BACKEND_PORT="8011"
 FRONTEND_HOST="0.0.0.0"
 FRONTEND_PORT="3005"
+NINEROUTER_AUTO_START="true"
+NINEROUTER_START_MODE="terminal"
+NINEROUTER_DASHBOARD_URL="http://localhost:20128/dashboard"
 
 log() {
   echo "[run] $*"
@@ -34,6 +38,9 @@ load_env() {
   BACKEND_PORT="${BACKEND_PORT:-8011}"
   FRONTEND_HOST="${FRONTEND_HOST:-0.0.0.0}"
   FRONTEND_PORT="${FRONTEND_PORT:-3005}"
+  NINEROUTER_AUTO_START="${NINEROUTER_AUTO_START:-true}"
+  NINEROUTER_START_MODE="${NINEROUTER_START_MODE:-terminal}"
+  NINEROUTER_DASHBOARD_URL="${NINEROUTER_DASHBOARD_URL:-http://localhost:20128/dashboard}"
 }
 
 venv_python_path() {
@@ -80,7 +87,7 @@ start_backend() {
     return 0
   fi
 
-  nohup bash -lc "cd \"$ROOT_DIR/backend\" && \"$venv_python\" -m uvicorn src.main:app --reload --host \"$BACKEND_HOST\" --port \"$BACKEND_PORT\"" \
+  nohup bash -lc "cd \"$ROOT_DIR/backend\" && \"$venv_python\" -m uvicorn src.main:app --host \"$BACKEND_HOST\" --port \"$BACKEND_PORT\"" \
     >"$backend_log" 2>&1 &
   local pid=$!
   echo "$pid" >"$BACKEND_PID_FILE"
@@ -102,6 +109,64 @@ start_frontend() {
   log "Frontend started pid=$pid log=$frontend_log"
 }
 
+open_command_in_terminal() {
+  local title="$1"
+  local command="$2"
+
+  if has_cmd gnome-terminal; then
+    gnome-terminal --title "$title" -- bash -lc "$command; exec bash" >/dev/null 2>&1 &
+    return 0
+  fi
+
+  if has_cmd x-terminal-emulator; then
+    x-terminal-emulator -T "$title" -e bash -lc "$command; exec bash" >/dev/null 2>&1 &
+    return 0
+  fi
+
+  if has_cmd konsole; then
+    konsole --new-tab -p tabtitle="$title" -e bash -lc "$command; exec bash" >/dev/null 2>&1 &
+    return 0
+  fi
+
+  if has_cmd mintty; then
+    mintty -t "$title" bash -lc "$command; exec bash" >/dev/null 2>&1 &
+    return 0
+  fi
+
+  return 1
+}
+
+start_ninerouter() {
+  local ninerouter_log="$LOG_DIR/9router.dev.log"
+
+  if [[ "${NINEROUTER_AUTO_START,,}" != "true" && "${NINEROUTER_AUTO_START}" != "1" ]]; then
+    return 0
+  fi
+
+  if has_cmd curl && curl -fsS "$NINEROUTER_DASHBOARD_URL" >/dev/null 2>&1; then
+    log "9Router already running at $NINEROUTER_DASHBOARD_URL"
+    return 0
+  fi
+
+  if ! has_cmd 9router; then
+    warn "Khong tim thay 9router. Hay chay ./setup.sh de cai."
+    return 0
+  fi
+
+  if [[ "$NINEROUTER_START_MODE" == "terminal" ]]; then
+    if open_command_in_terminal "web-agent-9router" "9router"; then
+      log "9Router terminal opened dashboard=$NINEROUTER_DASHBOARD_URL"
+      return 0
+    fi
+    warn "Khong mo duoc terminal rieng cho 9Router, se chay background"
+  fi
+
+  nohup 9router >"$ninerouter_log" 2>&1 &
+  local pid=$!
+  echo "$pid" >"$NINEROUTER_PID_FILE"
+  log "9Router started pid=$pid dashboard=$NINEROUTER_DASHBOARD_URL log=$ninerouter_log"
+}
+
 main() {
   mkdir -p "$LOG_DIR"
   load_env
@@ -121,10 +186,12 @@ main() {
 
   start_backend "$venv_python"
   start_frontend
+  start_ninerouter
 
   echo
   echo "Backend:  http://$BACKEND_HOST:$BACKEND_PORT"
   echo "Frontend: http://localhost:$FRONTEND_PORT"
+  echo "9Router:  $NINEROUTER_DASHBOARD_URL"
   echo "Logs:     $LOG_DIR/backend.dev.log, $LOG_DIR/frontend.dev.log"
 }
 

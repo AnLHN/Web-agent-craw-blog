@@ -87,6 +87,106 @@ export type ApiResponse<T> = {
   };
 };
 
+export type ArticleBlockType =
+  | "heading"
+  | "paragraph"
+  | "image"
+  | "code"
+  | "table"
+  | "quote"
+  | "embed"
+  | "unknown";
+
+export type ArticleAsset = {
+  id: string;
+  source_url: string;
+  local_path?: string | null;
+  mime_type?: string | null;
+  width?: number | null;
+  height?: number | null;
+  alt_text?: string | null;
+  caption?: string | null;
+  checksum?: string | null;
+  download_status: "pending" | "downloaded" | "skipped" | "failed";
+  metadata: Record<string, unknown>;
+};
+
+export type ArticleBlock = {
+  id: string;
+  order_index: number;
+  block_type: ArticleBlockType;
+  source_text?: string | null;
+  translated_text?: string | null;
+  language_hint?: string | null;
+  asset_id?: string | null;
+  metadata: Record<string, unknown>;
+};
+
+export type ArticleDraftPreview = {
+  title?: string | null;
+  slug?: string | null;
+  excerpt?: string | null;
+  content_format: string;
+  content?: string | null;
+  tags: string[];
+  categories: string[];
+  source_attribution?: {
+    url: string;
+    title?: string | null;
+    domain: string;
+  } | null;
+};
+
+export type ArticleImportRun = {
+  id: string;
+  status: string;
+  mode: string;
+  target_language: string;
+  source: {
+    url: string;
+    domain: string;
+    title?: string | null;
+    author?: string | null;
+    published_at?: string | null;
+  };
+  storage: {
+    run_dir: string;
+    raw_snapshot_path: string;
+    extracted_json_path: string;
+    draft_json_path: string;
+    assets_dir: string;
+  };
+  blocks: ArticleBlock[];
+  assets: ArticleAsset[];
+  draft?: ArticleDraftPreview | null;
+  prompt_usage: Array<{
+    prompt_key: string;
+    version?: string | null;
+    model?: string | null;
+    provider?: string | null;
+  }>;
+  wordpress_post_id?: string | null;
+  created_at: string;
+  updated_at: string;
+  error_message?: string | null;
+  metadata: Record<string, unknown>;
+};
+
+export type ArticleImportData = {
+  run: ArticleImportRun;
+};
+
+export type ArticleLlmHealthData = {
+  ok: boolean;
+  configured: boolean;
+  status: string;
+  message: string;
+  latency_ms: number;
+  base_url: string;
+  model: string;
+  has_api_key: boolean;
+};
+
 export type TavilyKeyInfo = {
   id: string;
   label: string;

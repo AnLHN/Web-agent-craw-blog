@@ -8,6 +8,8 @@ $FrontendDir = Join-Path $RootDir "frontend"
 $BackendEnv = Join-Path $BackendDir ".env"
 $BackendEnvExample = Join-Path $BackendDir ".env.example"
 $FrontendEnv = Join-Path $FrontendDir ".env.local"
+$LogDir = Join-Path $RootDir "logs"
+$NineRouterPidFile = Join-Path $LogDir "9router.pid"
 
 function Get-EnvMap {
     param([string]$Path)
@@ -116,6 +118,93 @@ function Ensure-DockerContainer {
     Write-Host "[setup] Da tao container: $Name"
 }
 
+function Test-IsTrue {
+    param([string]$Value)
+    return @("1", "true", "yes", "y", "on") -contains $Value.ToLower()
+}
+
+function Resolve-NineRouterCommand {
+    $cmd = Get-Command 9router.cmd -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    $cmd = Get-Command 9router -ErrorAction SilentlyContinue
+    if ($cmd) { return $cmd.Source }
+    $candidate = Join-Path $env:APPDATA "npm\9router.cmd"
+    if (Test-Path $candidate) { return $candidate }
+    return $null
+}
+
+function Ensure-NineRouter {
+    param([string]$NpmCmd)
+    if (Resolve-NineRouterCommand) {
+        Write-Host "[setup] 9Router da duoc cai"
+        return
+    }
+
+    $npmGlobalDir = Join-Path $env:APPDATA "npm"
+    New-Item -ItemType Directory -Force -Path $npmGlobalDir | Out-Null
+    Write-Host "[setup] Dang cai 9Router global"
+    & $NpmCmd install -g 9router
+    if ($LASTEXITCODE -ne 0) {
+        throw "Cai 9Router that bai. Thu chay thu cong: npm install -g 9router"
+    }
+}
+
+function Start-WpChromeIfEnabled {
+    param([string]$Port, [string]$Url)
+    $script = Join-Path $RootDir "scripts\start_wp_chrome.ps1"
+    if (-not (Test-Path $script)) {
+        Write-Host "[setup][warn] Khong tim thay $script, bo qua start WordPress browser"
+        return
+    }
+
+    try {
+        $listener = Get-NetTCPConnection -State Listen -LocalPort ([int]$Port) -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($listener) {
+            Write-Host "[setup] WordPress browser CDP dang chay tai http://127.0.0.1:$Port"
+            return
+        }
+    } catch {}
+
+    Write-Host "[setup] Dang mo WordPress browser CDP port $Port"
+    & $script -Port ([int]$Port) -Url $Url
+}
+
+function Start-NineRouterIfEnabled {
+    param([string]$NineRouterDashboardUrl, [string]$StartMode)
+    $nineRouterCmd = Resolve-NineRouterCommand
+    if (-not $nineRouterCmd) {
+        Write-Host "[setup][warn] Chua tim thay 9router command, bo qua auto-start"
+        return
+    }
+
+    try {
+        $uri = [Uri]$NineRouterDashboardUrl
+        $port = $uri.Port
+        if ($port -gt 0) {
+            $listener = Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($listener) {
+                Write-Host "[setup] 9Router dang chay tai $NineRouterDashboardUrl"
+                return
+            }
+        }
+    } catch {}
+
+    New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
+    if ($StartMode.ToLower() -eq "terminal") {
+        $terminalCommand = "`$host.UI.RawUI.WindowTitle='web-agent-9router'; & '$($nineRouterCmd.Replace("'", "''"))'"
+        $proc = Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoExit", "-ExecutionPolicy", "Bypass", "-Command", $terminalCommand) -WorkingDirectory $RootDir -PassThru
+        Set-Content -Path $NineRouterPidFile -Value $proc.Id -Encoding ascii
+        Write-Host "[setup] Da mo terminal 9Router pid=$($proc.Id) dashboard=$NineRouterDashboardUrl"
+        return
+    }
+
+    $outLog = Join-Path $LogDir "9router.out.log"
+    $errLog = Join-Path $LogDir "9router.err.log"
+    $proc = Start-Process -FilePath $nineRouterCmd -WorkingDirectory $RootDir -RedirectStandardOutput $outLog -RedirectStandardError $errLog -WindowStyle Hidden -PassThru
+    Set-Content -Path $NineRouterPidFile -Value $proc.Id -Encoding ascii
+    Write-Host "[setup] Da start 9Router pid=$($proc.Id) dashboard=$NineRouterDashboardUrl"
+}
+
 Ensure-FileFromExample $RootEnv $RootEnvExample
 Ensure-FileFromExample $BackendEnv $BackendEnvExample
 
@@ -130,6 +219,14 @@ $OpsRole = Get-EnvValue $envMap "OPS_ROLE" "admin"
 $OpsToken = Get-EnvValue $envMap "OPS_ADMIN_TOKEN" ""
 $LlmBaseUrl = Get-EnvValue $envMap "LLM_BASE_URL" "http://localhost:8007/v1"
 $LlmModel = Get-EnvValue $envMap "LLM_MODEL" "google/gemma-4-E4B-it"
+$NineRouterInstall = Get-EnvValue $envMap "NINEROUTER_INSTALL" "true"
+$NineRouterAutoStart = Get-EnvValue $envMap "NINEROUTER_AUTO_START" "true"
+$NineRouterStartMode = Get-EnvValue $envMap "NINEROUTER_START_MODE" "terminal"
+$NineRouterBaseUrl = Get-EnvValue $envMap "NINEROUTER_BASE_URL" "http://127.0.0.1:20128/v1"
+$NineRouterDashboardUrl = Get-EnvValue $envMap "NINEROUTER_DASHBOARD_URL" "http://localhost:20128/dashboard"
+$WpChromeAutoStart = Get-EnvValue $envMap "WP_CHROME_AUTO_START" "true"
+$WpChromePort = Get-EnvValue $envMap "WP_CHROME_PORT" "9227"
+$WpChromeUrl = Get-EnvValue $envMap "WP_CHROME_URL" "about:blank"
 
 if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
     throw "Khong tim thay python trong PATH."
@@ -153,6 +250,12 @@ Push-Location $FrontendDir
 & $NpmCmd install
 Pop-Location
 
+if (Test-IsTrue $NineRouterInstall) {
+    Ensure-NineRouter $NpmCmd
+} else {
+    Write-Host "[setup] NINEROUTER_INSTALL=false, bo qua cai 9Router"
+}
+
 New-Item -ItemType Directory -Force -Path (Join-Path $BackendDir "config") | Out-Null
 if (-not (Test-Path (Join-Path $BackendDir "config\tavily_keys.json"))) { Set-Content -Path (Join-Path $BackendDir "config\tavily_keys.json") -Value "[]" -Encoding utf8 }
 if (-not (Test-Path (Join-Path $BackendDir "config\chat_sessions.json"))) { Set-Content -Path (Join-Path $BackendDir "config\chat_sessions.json") -Value "[]" -Encoding utf8 }
@@ -165,13 +268,17 @@ Set-EnvValue $BackendEnv "APP_LLM_MODEL" $LlmModel
 Set-EnvValue $BackendEnv "APP_FEATURE_SESSION_HISTORY" $FeatureSession
 Set-EnvValue $BackendEnv "APP_FEATURE_OPS_DASHBOARD" $FeatureOps
 Set-EnvValue $BackendEnv "APP_FEATURE_LLM_RUNTIME_CONFIG" $FeatureLlmConfig
+Set-EnvValue $BackendEnv "APP_ARTICLE_LLM_PROVIDER" "9router_openai"
+Set-EnvValue $BackendEnv "APP_9ROUTER_BASE_URL" $NineRouterBaseUrl
+Set-EnvValue $BackendEnv "APP_ARTICLE_OPENAI_MODEL" "cx/gpt-5.5"
 
-Set-EnvValue $FrontendEnv "NEXT_PUBLIC_API_BASE" "/api/v1"
+Set-EnvValue $FrontendEnv "NEXT_PUBLIC_API_BASE" "http://127.0.0.1:$BackendPort/api/v1"
 Set-EnvValue $FrontendEnv "NEXT_PUBLIC_FEATURE_SESSION_HISTORY" $FeatureSession
 Set-EnvValue $FrontendEnv "NEXT_PUBLIC_FEATURE_OPS_DASHBOARD" $FeatureOps
 Set-EnvValue $FrontendEnv "NEXT_PUBLIC_FEATURE_LLM_RUNTIME_CONFIG" $FeatureLlmConfig
 Set-EnvValue $FrontendEnv "NEXT_PUBLIC_OPS_ROLE" $OpsRole
 Set-EnvValue $FrontendEnv "NEXT_PUBLIC_OPS_ADMIN_TOKEN" $OpsToken
+Set-EnvValue $FrontendEnv "NEXT_PUBLIC_9ROUTER_DASHBOARD_URL" $NineRouterDashboardUrl
 
 if ((Get-EnvValue $envMap "POSTGRES_AUTO_START" "false").ToLower() -eq "true") {
     $pgName = Get-EnvValue $envMap "POSTGRES_CONTAINER_NAME" "websearch-pg"
@@ -200,6 +307,31 @@ if ((Get-EnvValue $envMap "SEARXNG_AUTO_START" "false").ToLower() -eq "true") {
     New-Item -ItemType Directory -Force -Path $searxConfig | Out-Null
     Ensure-DockerContainer $searxName $searxImage @("-e", "BASE_URL=http://127.0.0.1:$searxPort/", "-e", "INSTANCE_NAME=web-agent-searxng", "-v", "$searxConfig`:/etc/searxng:ro", "-p", "$searxPort`:8080")
 }
+
+if (Test-IsTrue $NineRouterAutoStart) {
+    Start-NineRouterIfEnabled $NineRouterDashboardUrl $NineRouterStartMode
+} else {
+    Write-Host "[setup] NINEROUTER_AUTO_START=false, bo qua start 9Router"
+}
+
+if (Test-IsTrue $WpChromeAutoStart) {
+    Start-WpChromeIfEnabled $WpChromePort $WpChromeUrl
+} else {
+    Write-Host "[setup] WP_CHROME_AUTO_START=false, bo qua start WordPress browser"
+}
+
+Write-Host ""
+Write-Host "Chay backend:"
+Write-Host "  cd backend"
+Write-Host "  $VenvPython -m uvicorn src.main:app --host $BackendHost --port $BackendPort"
+Write-Host ""
+Write-Host "Chay frontend:"
+Write-Host "  cd frontend"
+Write-Host "  npm run dev -- --hostname 0.0.0.0 --port $FrontendPort"
+Write-Host ""
+Write-Host "Chay 9Router:"
+Write-Host "  9router"
+Write-Host "  Dashboard: $NineRouterDashboardUrl"
 
 if ((Get-EnvValue $envMap "AUTO_START_APPS" "true").ToLower() -eq "true") {
     & (Join-Path $RootDir "run.ps1")

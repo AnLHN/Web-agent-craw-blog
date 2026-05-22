@@ -1,184 +1,90 @@
-# Task Documentation: Web Search Aggregator (FastAPI + Next.js)
+# Implementation notes
 
-## Thoi gian
-- Bat dau: 2026-05-11
-- Hoan thanh phase implementation MVP: 2026-05-11
+Tài liệu này ghi lại các điểm triển khai đáng chú ý của Web Agent Craw Blog.
 
-## Muc tieu da dat
-- Da dung backend FastAPI voi pipeline Tavily-first, fallback SearXNG.
-- Da dung frontend Next.js de search va quan ly Tavily keys.
-- Da chuan hoa response schema cho endpoint thanh cong va loi.
-- Da test luong hien tai voi SearXNG fallback (khong can key Tavily).
+Repository hiện tại: https://github.com/AnLHN/Web-agent-craw-blog.git
 
-## Ket qua theo phase
+## Search Chat
 
-### Phase 0 - Discovery va chot yeu cau
-- Chot yeu cau: Tavily uu tien tuyet doi; fallback SearXNG khi can.
-- Chot output: summary + sources + confidence + attempts.
+- Tavily là provider ưu tiên.
+- SearXNG là fallback khi Tavily lỗi/rate limit hoặc không đạt quality gate.
+- Backend stream tiến trình qua SSE ở `POST /api/v1/search/stream`.
+- LLM final summary dùng OpenAI-compatible API và runtime config từ Prompt Manager.
 
-### Phase 1 - Backend core FastAPI
-- Tao cau truc backend theo skill:
-  - src/controllers
-  - src/routes
-  - src/services
-  - src/models
-  - src/utils
-  - config
-  - tests
-- Implement endpoint:
-  - GET /api/v1/health
-  - POST /api/v1/search
-  - GET /api/v1/keys/tavily
-  - POST /api/v1/keys/tavily
-  - DELETE /api/v1/keys/tavily/{key_id}
+## Article Import / Craw Blog
 
-### Phase 2 - Key rotation va fallback policy
-- Implement key store file-based cho Tavily:
-  - add/list/delete key
-  - select key theo score (last_used + success_rate)
-  - mark success/failure/rate-limit cooldown
-- Orchestrator logic:
-  - Thu Tavily truoc
-  - Danh gia quality threshold
-  - Fallback SearXNG khi khong dat
+Pipeline hiện tại:
 
-### Phase 3 - Response quality va schema
-- Data model da co:
-  - attempts theo provider
-  - summary extractive
-  - confidence score
-  - citations (sources)
-- Them global exception handlers de tra response schema thong nhat cho:
-  - validation errors
-  - HTTP errors
-  - unexpected errors
+```text
+URL
+  -> fetch HTML
+  -> extract blocks/assets
+  -> download assets
+  -> translate missing text blocks via 9Router GPT 5.5
+  -> build WordPress HTML draft
+  -> dry-run/paste through browser CDP
+```
 
-### Phase 4 - Frontend Next.js
-- Build UI gom:
-  - Search form
-  - Tavily key manager
-  - Summary + sources + pipeline attempts
-- Co khu vuc add key de test Tavily sau nay.
-- Trong hien tai (chua key), he thong van test duoc luong SearXNG fallback.
+Extractor coverage:
 
-### Phase 5 - Testing
-- Backend tests: 11/11 pass.
-- Frontend lint: pass.
-- Frontend production build: pass.
+- heading: `h1`-`h6`
+- paragraph: `p`
+- quote: `blockquote`
+- list: `ul`, `ol`, fallback `li`
+- code block thật: `pre`
+- inline code: `code` giữ trong text, không tách thành code block
+- image: `img`, lazy attrs, `figure`, `figcaption`
+- embed: `iframe`, `video`
+- table: `table`
+- link: `a` được thay bằng placeholder `[LINK_n:label]`
 
-### Phase 6 - SearXNG hardening cho fallback
-- Da them cache theo query (TTL) de giam truy van lap.
-- Da them throttle theo QPS cho fallback SearXNG.
-- Da them circuit breaker khi fallback gap loi lien tiep.
-- Da them fallback nhieu SearXNG instance khi instance chinh tra rong/that bai.
-- Da them test cache hit de dam bao lan query thu 2 khong goi provider lai.
-- Da chuan hoa no-results response: tra success=true, data co attempts chi tiet, khong vo schema loi.
-- Da bo sung test tang cuong cho pipeline:
-  - Tavily du chat luong thi khong fallback sang SearXNG.
-  - Tavily duoi nguong chat luong thi bat buoc fallback sang SearXNG.
-  - Tavily key invalid (401) khong retry lap vo hanh vi cham, fallback nhanh hon.
+## Link placeholder contract
 
-## Ket qua live-check bang request that
-- Da test request that qua localhost API (khong mock provider).
-- Scenario khong Tavily key:
-  - Pipeline skip Tavily dung nhu thiet ke.
-  - SearXNG fallback da duoc goi lan luot nhieu instance.
-  - Ket qua thuc te tren may hien tai: cac instance SearXNG tra 403/429/network error nen khong lay duoc source.
-- Scenario co Tavily key tam (invalid key de test thu tu pipeline):
-  - Tavily duoc uu tien goi truoc.
-  - Tavily tra 401 va key bi danh dau unhealthy, khong bi retry qua nhieu nhu truoc.
-  - Sau do fallback sang SearXNG.
+Extractor đưa link vào text dạng:
 
-## Danh gia chat luong hien tai
-- Logic pipeline va thu tu provider: dung.
-- Response schema va attempts telemetry: dung.
-- Do dung/noi dung cuoi khi chay live hien tai: chua dat do phu du lieu do provider fallback bi chan tren egress hien tai.
-- Dieu kien de dat chat luong cao trong van hanh that:
-  - Can Tavily key hop le.
-  - Nen co SearXNG self-host/proxy rieng on dinh thay vi phu thuoc instance cong cong.
+```text
+Read the [LINK_1:quantization guide].
+```
 
-## Cac kho khan gap phai va cach giai quyet
-1. ENOSPC khi cai package npm.
-- Nguyen nhan: /home day dung luong.
-- Xu ly: xoa cache npm va pip de giai phong bo nho.
+Metadata lưu URL:
 
-2. pip trong .venv bi loi module noi bo.
-- Nguyen nhan: pip state khong on dinh.
-- Xu ly: chay ensurepip --upgrade roi cai lai dependencies.
+```json
+{"id":"LINK_1","text":"quantization guide","href":"https://example.com/docs/quantization"}
+```
 
-3. pyproject hatch editable install bi fail.
-- Nguyen nhan: chua khai bao wheel packages.
-- Xu ly: them [tool.hatch.build.targets.wheel] packages = ["src"].
+Model phải giữ nguyên `LINK_1` và có thể dịch label:
 
-## Danh sach endpoint response schema
-- Tat ca endpoint tra envelope:
-  - success
-  - data
-  - error
-  - meta
+```text
+Đọc [LINK_1:hướng dẫn lượng tử hóa].
+```
 
-## Tinh trang hien tai
-- Luồng SearXNG fallback hoạt động và đã test tự động.
-- Luồng Tavily-first đã sẵn sàng, thêm key trong popup `Cài đặt` -> `Tavily Keys` để kích hoạt live.
-- Đã bổ sung CI cơ bản: backend tests + frontend lint/build qua GitHub Actions.
-- Đã bổ sung root `.gitignore` và `.env.example` cho backend/frontend.
-- Đã bao phủ schema lỗi cho cả trường hợp 404 route not found.
-- Frontend hiện là chat workspace: sidebar lịch sử, composer phía dưới, popup Cài đặt cho các manager.
-- Đã có SSE endpoint `POST /api/v1/search/stream` để stream trạng thái pipeline và final answer chunks.
-- Replay session vẫn còn ở backend cho debug/ops nhưng đã gỡ khỏi frontend để UI người dùng gọn hơn.
+Draft builder render lại:
 
-## Update 2026-05-15
+```html
+Đọc <a href="https://example.com/docs/quantization" rel="nofollow noopener">hướng dẫn lượng tử hóa</a>.
+```
 
-### Da lam them
-- Local infra:
-  - `setup.sh` auto-start PostgreSQL container `websearch-pg`.
-  - `setup.sh` auto-start pgAdmin container `websearch-pgadmin`.
-  - `setup.sh` auto-start SearXNG local container `websearch-searxng`.
-  - SearXNG local da bat JSON format qua `config/searxng/settings.yml`.
-  - Da fix Docker mount path khi chay tu Git Bash tren Windows bang `MSYS_NO_PATHCONV=1`.
-- Postgres:
-  - Session/search trace dang dung `APP_SESSION_STORE_BACKEND=postgres`.
-  - Migration Alembic da tao schema session/search trace.
-- Tavily/SearXNG:
-  - Khi Tavily key disabled/unavailable, backend fallback qua local SearXNG.
-  - Da them `APP_FORCE_SEARXNG_TEST_MODE=true` de test fallback SearXNG khi tat Tavily.
-- Prompt/output:
-  - Da them Prompt Manager UI.
-  - Runtime LLM config co `summary_system_prompt` va `summary_max_chars`.
-  - `summary_max_chars` nay nen hieu la `Target Output Length`.
-  - Backend khong uu tien cat output sau khi sinh nua; neu LLM tra qua dai thi goi rewrite compact de LLM tu rut gon trong ngan sach.
-  - Da them regression test `test_llm_summary_rewrites_to_length_budget_instead_of_cutting`.
-- Windows/Git Bash:
-  - Da hardening cleanup port/process cho backend `8011`.
-  - Neu port van LISTEN voi PID ao, dung PowerShell Admin `Restart-Service WinNat -Force`.
+Áp dụng cho paragraph, quote và list/bullet.
 
-### Viec tiep theo uu tien
-1. Nâng cấp `token` SSE từ chunk final summary sang upstream LLM `stream=true` nếu model server hỗ trợ ổn định.
-2. Chuẩn hóa CD khi có target deploy staging/production.
-3. Tách prompt registry/versioning nếu cần quản trị nhiều prompt version.
-4. Bổ sung blog/demo assets dựa trên `docs/blog-brief.md`.
+## Translation stability
 
-### File nen doc khi tiep tuc
-- `plans/plan-web-search-tavily-searxng-fastapi-nextjs.md`
-- `README.md`
-- `docs/env-reference.md`
-- `docs/setup-cross-platform.md`
-- `frontend/src/components/SearchWorkspace.tsx`
-- `frontend/src/components/OpsDashboard.tsx`
-- `frontend/src/components/PromptManagerPopup.tsx`
-- `backend/src/services/llm_summary_service.py`
-- `backend/src/services/search_orchestrator.py`
+- Provider: `9router_openai`.
+- Model mặc định: `cx/gpt-5.5`.
+- Batch nhỏ theo số block và tổng ký tự.
+- Chỉ dịch block chưa có `translated_text`, nên retry/resume không dịch lại từ đầu.
+- Retry transient status: `429`, `500`, `502`, `503`, `504`, timeout/reset.
+- Nếu vẫn lỗi, run chuyển `partial`; người dùng bấm Translate để tiếp tục.
 
-## Huong dan chay nhanh
-1. Backend
-- cd backend
-- ../.venv/Scripts/python.exe -m uvicorn src.main:app --reload --host 127.0.0.1 --port 8011
+## WordPress automation
 
-2. Frontend
-- cd frontend
-- npm run dev -- --hostname 0.0.0.0 --port 3005
+- Browser CDP mặc định: `http://127.0.0.1:9227`.
+- `Dry Run`: kiểm tra kết nối CDP và tab WordPress, không paste.
+- `Paste Draft`: paste title/content vào editor.
+- Setup có thể tự mở Chrome/Brave/Edge bằng `WP_CHROME_AUTO_START=true`.
 
-3. Cau hinh frontend -> backend
-- NEXT_PUBLIC_API_BASE=/api/v1
-- API_PROXY_HOST=127.0.0.1
-- API_PROXY_PORT=8011
+## CI/CD
+
+- CI ở `.github/workflows/ci.yml`.
+- Backend: Python 3.12, install `backend[dev]`, `pytest -q`.
+- Frontend: Node 24, `npm ci`, lint, build.
+- CD chưa bật; khi có staging/production, thêm workflow deploy riêng với GitHub Environments và Secrets.

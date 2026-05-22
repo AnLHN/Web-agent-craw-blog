@@ -8,6 +8,7 @@ ROOT_ENV_EXAMPLE_FILE="$ROOT_DIR/.env.example"
 LOG_DIR="$ROOT_DIR/logs"
 BACKEND_PID_FILE="$LOG_DIR/backend.pid"
 FRONTEND_PID_FILE="$LOG_DIR/frontend.pid"
+NINEROUTER_PID_FILE="$LOG_DIR/9router.pid"
 PYTHON_MIN_MAJOR=3
 PYTHON_MIN_MINOR=12
 NODE_MIN_MAJOR=20
@@ -47,6 +48,14 @@ SEARXNG_CONTAINER_NAME="websearch-searxng"
 SEARXNG_IMAGE="searxng/searxng:latest"
 SEARXNG_FORCE_RECREATE="false"
 SEARXNG_PORT="8080"
+NINEROUTER_INSTALL="true"
+NINEROUTER_AUTO_START="true"
+NINEROUTER_START_MODE="terminal"
+NINEROUTER_BASE_URL="http://127.0.0.1:20128/v1"
+NINEROUTER_DASHBOARD_URL="http://localhost:20128/dashboard"
+WP_CHROME_AUTO_START="true"
+WP_CHROME_PORT="9227"
+WP_CHROME_URL="about:blank"
 
 log() {
   echo "[setup] $*"
@@ -203,6 +212,59 @@ ensure_pgadmin_if_enabled() {
       -p "$PGADMIN_PORT:80" \
       -d "$PGADMIN_IMAGE" >/dev/null
   fi
+}
+
+ensure_ninerouter_if_enabled() {
+  if ! is_true "$NINEROUTER_INSTALL"; then
+    log "NINEROUTER_INSTALL=false, bo qua cai 9Router"
+    return 0
+  fi
+
+  load_nvm_if_present
+  if ! has_cmd npm; then
+    warn "Khong tim thay npm, khong the cai 9Router."
+    return 1
+  fi
+
+  if has_cmd 9router; then
+    log "9Router da duoc cai"
+    return 0
+  fi
+
+  log "Dang cai 9Router global"
+  npm install -g 9router
+}
+
+start_ninerouter_if_enabled() {
+  if ! is_true "$NINEROUTER_AUTO_START"; then
+    log "NINEROUTER_AUTO_START=false, bo qua start 9Router"
+    return 0
+  fi
+
+  load_nvm_if_present
+  if ! has_cmd 9router; then
+    warn "Chua tim thay 9router command, bo qua auto-start"
+    return 0
+  fi
+
+  if has_cmd curl && curl -fsS "$NINEROUTER_DASHBOARD_URL" >/dev/null 2>&1; then
+    log "9Router dang chay tai $NINEROUTER_DASHBOARD_URL"
+    return 0
+  fi
+
+  if [[ "$NINEROUTER_START_MODE" == "terminal" ]]; then
+    if open_command_in_terminal "web-agent-9router" "9router"; then
+      log "Da mo terminal 9Router dashboard=$NINEROUTER_DASHBOARD_URL"
+      return 0
+    fi
+    warn "Khong mo duoc terminal rieng cho 9Router, se chay background"
+  fi
+
+  mkdir -p "$LOG_DIR"
+  nohup 9router >"$LOG_DIR/9router.dev.log" 2>&1 &
+  local pid=$!
+  echo "$pid" >"$NINEROUTER_PID_FILE"
+  log "Da start 9Router pid=$pid dashboard=$NINEROUTER_DASHBOARD_URL"
 }
 
 ensure_searxng_if_enabled() {
@@ -527,12 +589,21 @@ ensure_root_env() {
   SEARXNG_IMAGE="${SEARXNG_IMAGE:-searxng/searxng:latest}"
   SEARXNG_FORCE_RECREATE="${SEARXNG_FORCE_RECREATE:-false}"
   SEARXNG_PORT="${SEARXNG_PORT:-8080}"
+  NINEROUTER_INSTALL="${NINEROUTER_INSTALL:-true}"
+  NINEROUTER_AUTO_START="${NINEROUTER_AUTO_START:-true}"
+  NINEROUTER_START_MODE="${NINEROUTER_START_MODE:-terminal}"
+  NINEROUTER_BASE_URL="${NINEROUTER_BASE_URL:-http://127.0.0.1:20128/v1}"
+  NINEROUTER_DASHBOARD_URL="${NINEROUTER_DASHBOARD_URL:-http://localhost:20128/dashboard}"
+  WP_CHROME_AUTO_START="${WP_CHROME_AUTO_START:-true}"
+  WP_CHROME_PORT="${WP_CHROME_PORT:-9227}"
+  WP_CHROME_URL="${WP_CHROME_URL:-about:blank}"
 
   [[ "$BACKEND_PORT" =~ ^[0-9]+$ ]] || error "BACKEND_PORT phai la so"
   [[ "$FRONTEND_PORT" =~ ^[0-9]+$ ]] || error "FRONTEND_PORT phai la so"
   [[ "$POSTGRES_PORT" =~ ^[0-9]+$ ]] || error "POSTGRES_PORT phai la so"
   [[ "$PGADMIN_PORT" =~ ^[0-9]+$ ]] || error "PGADMIN_PORT phai la so"
   [[ "$SEARXNG_PORT" =~ ^[0-9]+$ ]] || error "SEARXNG_PORT phai la so"
+  [[ "$WP_CHROME_PORT" =~ ^[0-9]+$ ]] || error "WP_CHROME_PORT phai la so"
 }
 
 detect_vllm_base_url() {
@@ -815,6 +886,9 @@ setup_backend() {
   upsert_env_var "$backend_env" "APP_RBAC_ADMIN_TOKEN" "$RBAC_ADMIN_TOKEN"
   upsert_env_var "$backend_env" "APP_LLM_RUNTIME_STORE_PATH" "config/llm_runtime.json"
   upsert_env_var "$backend_env" "APP_AUDIT_LOG_STORE_PATH" "config/audit_logs.jsonl"
+  upsert_env_var "$backend_env" "APP_ARTICLE_LLM_PROVIDER" "9router_openai"
+  upsert_env_var "$backend_env" "APP_9ROUTER_BASE_URL" "$NINEROUTER_BASE_URL"
+  upsert_env_var "$backend_env" "APP_ARTICLE_OPENAI_MODEL" "cx/gpt-5.5"
   log "Da cap nhat cau hinh LLM backend: APP_LLM_BASE_URL=$llm_base_url"
 
   if [[ -z "$(extract_env_value "$backend_env" "APP_DATABASE_URL")" ]]; then
@@ -904,7 +978,7 @@ setup_frontend() {
     api_proxy_host="$BACKEND_HOST"
   fi
 
-  upsert_env_var "$frontend_env_local" "NEXT_PUBLIC_API_BASE" "/api/v1"
+  upsert_env_var "$frontend_env_local" "NEXT_PUBLIC_API_BASE" "http://127.0.0.1:${BACKEND_PORT}/api/v1"
   upsert_env_var "$frontend_env_local" "API_PROXY_HOST" "$api_proxy_host"
   upsert_env_var "$frontend_env_local" "API_PROXY_PORT" "$BACKEND_PORT"
   upsert_env_var "$frontend_env_local" "NEXT_PUBLIC_FEATURE_SESSION_HISTORY" "$FEATURE_SESSION_HISTORY"
@@ -912,6 +986,7 @@ setup_frontend() {
   upsert_env_var "$frontend_env_local" "NEXT_PUBLIC_FEATURE_LLM_RUNTIME_CONFIG" "$FEATURE_LLM_RUNTIME_CONFIG"
   upsert_env_var "$frontend_env_local" "NEXT_PUBLIC_OPS_ROLE" "$OPS_ROLE"
   upsert_env_var "$frontend_env_local" "NEXT_PUBLIC_OPS_ADMIN_TOKEN" "$OPS_ADMIN_TOKEN"
+  upsert_env_var "$frontend_env_local" "NEXT_PUBLIC_9ROUTER_DASHBOARD_URL" "$NINEROUTER_DASHBOARD_URL"
 }
 
 open_command_in_terminal() {
@@ -941,6 +1016,27 @@ open_command_in_terminal() {
   return 1
 }
 
+start_wp_chrome_if_enabled() {
+  if ! is_true "$WP_CHROME_AUTO_START"; then
+    log "WP_CHROME_AUTO_START=false, bo qua start WordPress browser"
+    return 0
+  fi
+
+  if has_cmd curl && curl -fsS "http://127.0.0.1:$WP_CHROME_PORT/json/version" >/dev/null 2>&1; then
+    log "WordPress browser CDP dang chay tai http://127.0.0.1:$WP_CHROME_PORT"
+    return 0
+  fi
+
+  local script="$ROOT_DIR/scripts/start_wp_chrome.sh"
+  if [[ ! -f "$script" ]]; then
+    warn "Khong tim thay $script, bo qua start WordPress browser"
+    return 0
+  fi
+
+  log "Dang mo WordPress browser CDP port $WP_CHROME_PORT"
+  PORT="$WP_CHROME_PORT" URL="$WP_CHROME_URL" bash "$script" || warn "Khong mo duoc WordPress browser CDP"
+}
+
 start_apps_in_two_terminals() {
   local venv_python
   venv_python="$(venv_python_path)"
@@ -954,11 +1050,18 @@ start_apps_in_two_terminals() {
     return 0
   fi
 
-  backend_cmd="cd $ROOT_DIR/backend && $venv_python -m uvicorn src.main:app --reload --host $BACKEND_HOST --port $BACKEND_PORT"
+  backend_cmd="cd $ROOT_DIR/backend && $venv_python -m uvicorn src.main:app --host $BACKEND_HOST --port $BACKEND_PORT"
   frontend_cmd="cd $ROOT_DIR/frontend && export NVM_DIR=\"$HOME/.nvm\" && if [ -s \"$HOME/.nvm/nvm.sh\" ]; then source \"$HOME/.nvm/nvm.sh\"; fi; npm run dev -- --hostname $FRONTEND_HOST --port $FRONTEND_PORT"
 
   if has_display && open_command_in_terminal "web-agent-backend" "$backend_cmd" && open_command_in_terminal "web-agent-frontend" "$frontend_cmd"; then
-    log "Da mo 2 terminal cho backend va frontend"
+    if is_true "$NINEROUTER_AUTO_START" && [[ "$NINEROUTER_START_MODE" == "terminal" ]] && has_cmd 9router; then
+      if has_cmd curl && curl -fsS "$NINEROUTER_DASHBOARD_URL" >/dev/null 2>&1; then
+        log "9Router dang chay tai $NINEROUTER_DASHBOARD_URL"
+      elif open_command_in_terminal "web-agent-9router" "9router"; then
+        log "Da mo terminal cho 9Router"
+      fi
+    fi
+    log "Da mo terminal cho backend va frontend"
     return 0
   fi
 
@@ -1005,11 +1108,15 @@ print_summary() {
   echo
   echo "Chay backend:"
   echo "  cd backend"
-  echo "  $venv_python -m uvicorn src.main:app --reload --host $BACKEND_HOST --port $BACKEND_PORT"
+  echo "  $venv_python -m uvicorn src.main:app --host $BACKEND_HOST --port $BACKEND_PORT"
   echo
   echo "Chay frontend:"
   echo "  cd frontend"
   echo "  npm run dev -- --hostname $FRONTEND_HOST --port $FRONTEND_PORT"
+  echo
+  echo "Chay 9Router:"
+  echo "  9router"
+  echo "  Dashboard: $NINEROUTER_DASHBOARD_URL"
   if is_true "$PGADMIN_AUTO_START"; then
     echo
     echo "pgAdmin:"
@@ -1030,11 +1137,13 @@ main() {
 
   ensure_node
   ensure_npm
+  ensure_ninerouter_if_enabled
 
   ensure_venv "$py_bin"
   setup_backend
   setup_frontend
   print_summary
+  start_wp_chrome_if_enabled
   start_apps_in_two_terminals
 }
 
