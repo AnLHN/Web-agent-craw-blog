@@ -82,6 +82,21 @@ Draft builder render lại:
 - `Paste Draft`: paste title/content vào editor.
 - Setup có thể tự mở Chrome/Brave/Edge bằng `WP_CHROME_AUTO_START=true`.
 
+## Auth/Admin phase 1
+
+Đã bắt đầu phase Auth/User/Admin bằng migration DB schema nền:
+
+- `users`
+- `roles`
+- `user_roles`
+- `permissions`
+- `role_permissions`
+- `user_sessions`
+- `admin_profiles`
+- `admin_audit_events`
+
+Migration seed role mặc định `user`, `admin` và permission codes đã chốt trong plan. Bảng `admin_profiles` tách riêng metadata quản trị khỏi bảng `users`.
+
 ## CI/CD
 
 - CI ở `.github/workflows/ci.yml`.
