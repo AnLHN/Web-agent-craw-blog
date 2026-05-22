@@ -87,6 +87,29 @@ export type ApiResponse<T> = {
   };
 };
 
+export type AuthUser = {
+  id: string;
+  email: string;
+  username?: string | null;
+  full_name?: string | null;
+  status: string;
+  roles: string[];
+  permissions: string[];
+  created_at: string;
+  updated_at: string;
+  last_login_at?: string | null;
+};
+
+export type AuthData = {
+  user: AuthUser;
+  access_token: string;
+  token_type: string;
+};
+
+export type CurrentUserData = {
+  user: AuthUser;
+};
+
 export type ArticleBlockType =
   | "heading"
   | "paragraph"

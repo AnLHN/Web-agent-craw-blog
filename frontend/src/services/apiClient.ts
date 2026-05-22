@@ -3,6 +3,8 @@ import {
   ApiResponse,
   ArticleImportData,
   ArticleLlmHealthData,
+  AuthData,
+  CurrentUserData,
   ChatSessionData,
   ChatSessionListData,
   LlmHealthData,
@@ -28,6 +30,10 @@ function opsHeaders(): Record<string, string> {
   return headers;
 }
 
+function authHeaders(token: string): Record<string, string> {
+  return { Authorization: `Bearer ${token}` };
+}
+
 async function parseJson<T>(response: Response): Promise<T> {
   const raw = await response.text();
   const trimmed = raw.trim();
@@ -45,6 +51,52 @@ async function parseJson<T>(response: Response): Promise<T> {
     const snippet = trimmed.slice(0, 160);
     throw new Error(`Backend returned non-JSON response (HTTP ${response.status}): ${snippet}`);
   }
+}
+
+export async function registerUser(payload: {
+  email: string;
+  password: string;
+  username?: string;
+  full_name?: string;
+}): Promise<ApiResponse<AuthData>> {
+  const response = await fetch(`${API_BASE}/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  return parseJson<ApiResponse<AuthData>>(response);
+}
+
+export async function loginUser(payload: {
+  email: string;
+  password: string;
+}): Promise<ApiResponse<AuthData>> {
+  const response = await fetch(`${API_BASE}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
+  return parseJson<ApiResponse<AuthData>>(response);
+}
+
+export async function fetchCurrentUser(token: string): Promise<ApiResponse<CurrentUserData>> {
+  const response = await fetch(`${API_BASE}/auth/me`, {
+    method: "GET",
+    headers: authHeaders(token),
+    cache: "no-store",
+  });
+  return parseJson<ApiResponse<CurrentUserData>>(response);
+}
+
+export async function logoutUser(token: string): Promise<ApiResponse<{ status: string }>> {
+  const response = await fetch(`${API_BASE}/auth/logout`, {
+    method: "POST",
+    headers: authHeaders(token),
+    cache: "no-store",
+  });
+  return parseJson<ApiResponse<{ status: string }>>(response);
 }
 
 export async function searchWeb(

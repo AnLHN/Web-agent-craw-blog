@@ -6,13 +6,17 @@ import {
   addTavilyKey,
   createChatSession,
   deleteChatSession,
+  fetchCurrentUser,
   deleteTavilyKey,
   fetchTavilyKeys,
   getChatSession,
   listChatSessions,
+  loginUser,
+  logoutUser,
+  registerUser,
   searchWebStream,
 } from "@/services/apiClient";
-import { ChatSession, SearchData, SearchStreamStatusEvent, TavilyKeyInfo } from "@/types/api";
+import { AuthUser, ChatSession, SearchData, SearchStreamStatusEvent, TavilyKeyInfo } from "@/types/api";
 import { prettyDate } from "@/utils/date";
 
 import { ArticleImportPanel } from "./ArticleImportPanel";
@@ -23,6 +27,9 @@ import { SearchResultPanel } from "./SearchResultPanel";
 
 type WorkspaceMode = "web-search" | "article-import";
 type TabKey = "tavily-keys" | "ops" | "prompts";
+type AuthMode = "login" | "register";
+
+const AUTH_TOKEN_KEY = "web_agent_auth_token";
 
 type NavItem = {
   key: TabKey;
@@ -89,6 +96,20 @@ export function SearchWorkspace() {
   const featureLlmRuntimeConfig =
     (process.env.NEXT_PUBLIC_FEATURE_LLM_RUNTIME_CONFIG || "true").toLowerCase() !== "false";
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<AuthMode>("login");
+  const [authToken, setAuthToken] = useState<string | null>(() => {
+    if (typeof window === "undefined") {
+      return null;
+    }
+    return window.localStorage.getItem(AUTH_TOKEN_KEY);
+  });
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authUsername, setAuthUsername] = useState("");
+  const [authFullName, setAuthFullName] = useState("");
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>("web-search");
   const [activeTab, setActiveTab] = useState<TabKey>("tavily-keys");
   const [query, setQuery] = useState("");
@@ -285,6 +306,31 @@ export function SearchWorkspace() {
   }
 
   useEffect(() => {
+    if (!authToken) {
+      return;
+    }
+    void (async () => {
+      try {
+        const response = await fetchCurrentUser(authToken);
+        if (!response.success || !response.data) {
+          window.localStorage.removeItem(AUTH_TOKEN_KEY);
+          setAuthToken(null);
+          setCurrentUser(null);
+          return;
+        }
+        setCurrentUser(response.data.user);
+      } catch {
+        window.localStorage.removeItem(AUTH_TOKEN_KEY);
+        setAuthToken(null);
+        setCurrentUser(null);
+      }
+    })();
+  }, [authToken]);
+
+  useEffect(() => {
+    if (!currentUser) {
+      return;
+    }
     const timerId = window.setTimeout(() => {
       if (featureSessionHistory) {
         void Promise.all([loadKeys(), loadSessionHistory()]);
@@ -296,9 +342,56 @@ export function SearchWorkspace() {
     return () => {
       window.clearTimeout(timerId);
     };
-    // Initial boot load only; tab changes should not refetch all workspace data.
+    // Initial boot load after auth only; tab changes should not refetch all workspace data.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [currentUser?.id]);
+
+  async function handleAuthSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsAuthLoading(true);
+    setAuthError(null);
+    try {
+      const response = authMode === "login"
+        ? await loginUser({ email: authEmail, password: authPassword })
+        : await registerUser({
+            email: authEmail,
+            password: authPassword,
+            username: authUsername.trim() || undefined,
+            full_name: authFullName.trim() || undefined,
+          });
+      if (!response.success || !response.data) {
+        setAuthError(response.error?.message || "Authentication failed.");
+        return;
+      }
+      window.localStorage.setItem(AUTH_TOKEN_KEY, response.data.access_token);
+      setAuthToken(response.data.access_token);
+      setCurrentUser(response.data.user);
+      setAuthPassword("");
+      setAuthError(null);
+    } catch {
+      setAuthError("Khong ket noi duoc backend auth API.");
+    } finally {
+      setIsAuthLoading(false);
+    }
+  }
+
+  async function handleLogout() {
+    const token = authToken;
+    window.localStorage.removeItem(AUTH_TOKEN_KEY);
+    setAuthToken(null);
+    setCurrentUser(null);
+    setSessions([]);
+    setCurrentSession(null);
+    setCurrentSessionId(null);
+    resetChatDraftAndResult();
+    if (token) {
+      try {
+        await logoutUser(token);
+      } catch {
+        // Local logout already completed.
+      }
+    }
+  }
 
   async function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -394,6 +487,89 @@ export function SearchWorkspace() {
       ? [{ key: "prompts" as const, label: "Prompt Manager", shortLabel: "Prompts" }]
       : []),
   ];
+
+  function renderAuthGate() {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#f5f9ff] px-4 py-8">
+        <div className="w-full max-w-md rounded-3xl border border-blue-100 bg-white p-6 shadow-xl shadow-blue-950/10">
+          <p className="text-xs font-semibold uppercase text-orange-600">Web Agent Craw Blog</p>
+          <h1 className="mt-2 text-2xl font-bold text-stone-950">
+            {authMode === "login" ? "Đăng nhập" : "Đăng ký tài khoản"}
+          </h1>
+          <p className="mt-2 text-sm text-stone-600">
+            {authMode === "login"
+              ? "Đăng nhập để dùng search, article import và trang quản trị."
+              : "Tài khoản đầu tiên sẽ tự nhận quyền admin."}
+          </p>
+
+          <form onSubmit={handleAuthSubmit} className="mt-6 space-y-3">
+            <label className="grid gap-1 text-sm font-medium text-stone-700">
+              Email
+              <input
+                type="email"
+                value={authEmail}
+                onChange={(event) => setAuthEmail(event.target.value)}
+                className="rounded-xl border border-blue-100 px-3 py-2 text-sm focus:border-orange-400 focus:outline-none"
+                required
+              />
+            </label>
+            {authMode === "register" ? (
+              <>
+                <label className="grid gap-1 text-sm font-medium text-stone-700">
+                  Username
+                  <input
+                    type="text"
+                    value={authUsername}
+                    onChange={(event) => setAuthUsername(event.target.value)}
+                    className="rounded-xl border border-blue-100 px-3 py-2 text-sm focus:border-orange-400 focus:outline-none"
+                  />
+                </label>
+                <label className="grid gap-1 text-sm font-medium text-stone-700">
+                  Full name
+                  <input
+                    type="text"
+                    value={authFullName}
+                    onChange={(event) => setAuthFullName(event.target.value)}
+                    className="rounded-xl border border-blue-100 px-3 py-2 text-sm focus:border-orange-400 focus:outline-none"
+                  />
+                </label>
+              </>
+            ) : null}
+            <label className="grid gap-1 text-sm font-medium text-stone-700">
+              Password
+              <input
+                type="password"
+                value={authPassword}
+                onChange={(event) => setAuthPassword(event.target.value)}
+                className="rounded-xl border border-blue-100 px-3 py-2 text-sm focus:border-orange-400 focus:outline-none"
+                minLength={authMode === "register" ? 8 : 1}
+                required
+              />
+            </label>
+            {authError ? <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{authError}</p> : null}
+            <button
+              type="submit"
+              disabled={isAuthLoading}
+              className="w-full rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600 disabled:opacity-60"
+            >
+              {isAuthLoading ? "Đang xử lý..." : authMode === "login" ? "Đăng nhập" : "Đăng ký"}
+            </button>
+          </form>
+
+          <button
+            type="button"
+            onClick={() => {
+              setAuthMode(authMode === "login" ? "register" : "login");
+              setAuthError(null);
+            }}
+            className="mt-4 text-sm font-medium text-blue-700 hover:text-blue-900"
+          >
+            {authMode === "login" ? "Chưa có tài khoản? Đăng ký" : "Đã có tài khoản? Đăng nhập"}
+          </button>
+        </div>
+      </main>
+    );
+  }
 
   function renderSessionSidebar() {
     if (!featureSessionHistory) {
@@ -502,13 +678,26 @@ export function SearchWorkspace() {
           )}
         </div>
 
-        <div className="border-t border-white/10 p-3">
+        <div className="space-y-2 border-t border-white/10 p-3">
+          {currentUser ? (
+            <div className="rounded-xl border border-white/10 bg-white/8 px-3 py-2">
+              <p className="truncate text-xs font-semibold text-white">{currentUser.email}</p>
+              <p className="mt-0.5 text-[11px] text-blue-100/60">Role: {currentUser.roles.join(", ") || "user"}</p>
+            </div>
+          ) : null}
           <button
             type="button"
             onClick={() => setSettingsOpen(true)}
             className="w-full rounded-xl bg-orange-300 px-3 py-2 text-left text-sm font-semibold text-blue-950 shadow-sm hover:bg-orange-200"
           >
             Cài đặt
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleLogout()}
+            className="w-full rounded-xl border border-white/15 px-3 py-2 text-left text-sm font-semibold text-white hover:bg-white/10"
+          >
+            Đăng xuất
           </button>
         </div>
       </aside>
@@ -679,6 +868,10 @@ export function SearchWorkspace() {
         </div>
       </div>
     );
+  }
+
+  if (!currentUser) {
+    return renderAuthGate();
   }
 
   return (
