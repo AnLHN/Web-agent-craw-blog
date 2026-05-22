@@ -97,6 +97,24 @@ Draft builder render lại:
 
 Migration seed role mặc định `user`, `admin` và permission codes đã chốt trong plan. Bảng `admin_profiles` tách riêng metadata quản trị khỏi bảng `users`.
 
+## Auth/Admin phase 2
+
+Đã thêm auth API nền tảng:
+
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/login`
+- `GET /api/v1/auth/me`
+- `POST /api/v1/auth/logout`
+
+Phase này dùng file-backed auth store cho local/dev để frontend có thể tích hợp sớm. Password được hash bằng PBKDF2-HMAC-SHA256; bearer token chỉ lưu dạng hash trong auth store. User đầu tiên đăng ký tự nhận role `admin`, user sau nhận role `user`.
+
+Docs pipeline đã có Mermaid cho:
+
+- Search pipeline.
+- Article Import pipeline.
+- Auth/RBAC pipeline.
+- Deployment pipeline target.
+
 ## CI/CD
 
 - CI ở `.github/workflows/ci.yml`.

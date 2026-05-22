@@ -60,22 +60,22 @@ Thư mục: `backend/`
 
 ## Pipeline xử lý
 
-```text
-POST /api/v1/search hoặc /api/v1/search/stream
-  -> Validate request/session
-  -> Load session context
-  -> Context Query Rewriter
-  -> Query Analyst
-  -> Query Planner
-  -> Multi-query Retrieval
-      -> Tavily first
-      -> SearXNG fallback nếu cần
-  -> Evidence Merge
-  -> Quality Gate
-  -> LLM Final Summary
-  -> Finalize summary
-  -> Save chat messages + search run
-  -> Return JSON hoặc stream SSE
+```mermaid
+flowchart TD
+    A[POST /api/v1/search or /search/stream] --> B[Validate request and session]
+    B --> C[Load session context]
+    C --> D[Context Query Rewriter]
+    D --> E[Query Analyst]
+    E --> F[Query Planner]
+    F --> G[Multi-query Retrieval]
+    G --> H[Tavily first]
+    H --> I{Quality gate passed?}
+    I -- yes --> K[Evidence Merge]
+    I -- no --> J[SearXNG fallback]
+    J --> K
+    K --> L[LLM Final Summary]
+    L --> M[Save chat messages and search run]
+    M --> N[Return JSON or SSE]
 ```
 
 ## Context Query Rewriter
@@ -213,24 +213,30 @@ Endpoint chính:
 
 Luồng xử lý:
 
-```text
-URL bài viết
-  -> ArticleFetcherService
-  -> ArticleExtractorService
-      -> heading / paragraph / quote / list / table / code / image / embed
-      -> link placeholders [LINK_n:label]
-  -> ArticleAssetService tải ảnh
-  -> ArticleTranslationService
-      -> chỉ dịch block chưa có translated_text
-      -> batch nhỏ theo block count và max chars
-      -> retry transient 429/500/502/503/504/timeout
-      -> partial + resume nếu provider quá tải
-  -> WordPressDraftBuilder
-      -> render HTML
-      -> khôi phục [LINK_n:label] thành <a href="...">label</a>
-  -> WordPressAutomationService
-      -> dry-run kiểm tra tab WordPress qua CDP
-      -> paste draft khi người dùng bấm Paste Draft
+```mermaid
+flowchart TD
+    A[User-provided URL] --> B[ArticleFetcherService]
+    B --> C[ArticleExtractorService]
+    C --> C1[Extract heading paragraph quote list table code image embed]
+    C --> C2[Convert links to LINK placeholders]
+    C1 --> D[ArticleAssetService downloads images]
+    C2 --> D
+    D --> E[ArticleTranslationService]
+    E --> F[Build batches from untranslated blocks]
+    F --> G[9Router GPT 5.5 translation]
+    G --> H{Transient error?}
+    H -- yes --> I[Retry with backoff]
+    I --> J{Still failing?}
+    J -- yes --> K[Mark partial and pause]
+    J -- no --> L[Apply translated_text]
+    H -- no --> L
+    L --> M[WordPressDraftBuilder]
+    K --> M
+    M --> N[Restore LINK placeholders to anchors]
+    N --> O[Draft HTML]
+    O --> P{User action}
+    P -- Dry Run --> Q[Check WordPress CDP tab]
+    P -- Paste Draft --> R[Paste title/content through CDP]
 ```
 
 Extractor coverage hiện tại:
@@ -251,6 +257,59 @@ Translation provider:
 - Provider metadata: `9router_openai`.
 - Model mặc định: `cx/gpt-5.5`.
 - Prompt yêu cầu giữ `LINK_n`, giữ inline code/API/model names trong câu, chỉ copy nguyên source cho code block thật.
+
+## Auth/RBAC pipeline
+
+Endpoint hiện tại:
+
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/login`
+- `GET /api/v1/auth/me`
+- `POST /api/v1/auth/logout`
+
+Phase hiện tại dùng file-backed auth store cho local/dev API. Migration DB Auth/RBAC/Admin đã có để chuyển sang Postgres-backed production store ở phase sau.
+
+```mermaid
+flowchart TD
+    A[Register/Login request] --> B[Validate payload]
+    B --> C[AuthService]
+    C --> D{Register or Login?}
+    D -- Register --> E[Create user]
+    E --> F{First user?}
+    F -- yes --> G[Assign admin role]
+    F -- no --> H[Assign user role]
+    D -- Login --> I[Verify password hash]
+    G --> J[Create session token]
+    H --> J
+    I --> J
+    J --> K[Return bearer token and public user]
+    L[Protected request] --> M[Read Authorization Bearer]
+    M --> N[Hash token and load session]
+    N --> O[Load current user roles and permissions]
+    O --> P{Permission required?}
+    P -- allowed --> Q[Call endpoint]
+    P -- denied --> R[Forbidden/Auth error]
+```
+
+## Deployment pipeline target
+
+```mermaid
+flowchart LR
+    A[Developer branch] --> B[Pull request]
+    B --> C[GitHub Actions CI]
+    C --> D[Backend tests]
+    C --> E[Frontend lint/build]
+    D --> F{CI green?}
+    E --> F
+    F -- no --> G[Fix and rerun]
+    F -- yes --> H[Merge main]
+    H --> I[Build deploy artifacts]
+    I --> J[Deploy staging]
+    J --> K[Smoke tests and benchmark report]
+    K --> L{Approval}
+    L -- approved --> M[Deploy production]
+    L -- rejected --> G
+```
 
 ## SSE streaming
 

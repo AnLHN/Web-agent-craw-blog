@@ -11,6 +11,7 @@ backend/config/tavily_keys.json
 backend/config/llm_runtime.json
 backend/config/audit_logs.jsonl
 backend/config/chat_sessions.json
+backend/config/auth_store.json
 backend/data/article_imports/
 
 # Node / Next.js

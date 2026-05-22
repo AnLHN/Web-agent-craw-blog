@@ -59,6 +59,8 @@ class Settings(BaseSettings):
     session_store_dual_write: bool = False
     llm_runtime_store_path: str = "config/llm_runtime.json"
     audit_log_store_path: str = "config/audit_logs.jsonl"
+    auth_store_path: str = "config/auth_store.json"
+    auth_token_secret: str = "dev-auth-secret-change-me"
     chat_session_retention_days: int = 30
     rbac_enabled: bool = False
     rbac_admin_token: str = ""

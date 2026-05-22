@@ -146,6 +146,8 @@ Không commit file này nếu chứa key thật.
 - `APP_CHAT_SESSION_RETENTION_DAYS`
 - `APP_LLM_RUNTIME_STORE_PATH`
 - `APP_AUDIT_LOG_STORE_PATH`
+- `APP_AUTH_STORE_PATH`: file-backed auth store cho phase local/dev.
+- `APP_AUTH_TOKEN_SECRET`: secret dùng hash bearer session token; production phải đổi giá trị này.
 
 ### Database/session
 

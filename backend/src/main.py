@@ -12,6 +12,7 @@ from src.services.evidence_merge_service import EvidenceMergeService
 from src.services.chat_session_store_factory import build_chat_session_store
 from src.services.context_query_rewriter_service import ContextQueryRewriterService
 from src.services.audit_log_store import AuditLogStore
+from src.services.auth_service import AuthService
 from src.services.article_asset_service import ArticleAssetService
 from src.services.article_extractor_service import ArticleExtractorService
 from src.services.article_fetcher_service import ArticleFetcherService
@@ -47,6 +48,7 @@ def build_services(settings: Settings) -> dict:
         flush=True,
     )
     audit_log_store = AuditLogStore(file_path=settings.audit_log_store_path)
+    auth_service = AuthService(file_path=settings.auth_store_path, secret=settings.auth_token_secret)
     article_fetcher_service = ArticleFetcherService(settings=settings)
     article_extractor_service = ArticleExtractorService()
     article_asset_service = ArticleAssetService(settings=settings)
@@ -91,6 +93,7 @@ def build_services(settings: Settings) -> dict:
         "query_cache": query_cache,
         "llm_runtime_store": llm_runtime_store,
         "audit_log_store": audit_log_store,
+        "auth_service": auth_service,
         "article_fetcher_service": article_fetcher_service,
         "article_extractor_service": article_extractor_service,
         "article_asset_service": article_asset_service,
