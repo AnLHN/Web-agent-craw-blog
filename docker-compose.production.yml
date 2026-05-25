@@ -1,0 +1,77 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-web_search}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the environment}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_ENVIRONMENT: production
+      APP_CORS_ORIGINS: ${APP_CORS_ORIGINS:-["http://localhost:3005"]}
+      APP_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the environment}@postgres:5432/${POSTGRES_DB:-web_search}
+      APP_AUTH_STORE_BACKEND: ${APP_AUTH_STORE_BACKEND:-postgres}
+      APP_SESSION_STORE_BACKEND: ${APP_SESSION_STORE_BACKEND:-postgres}
+      APP_SESSION_STORE_DUAL_WRITE: ${APP_SESSION_STORE_DUAL_WRITE:-false}
+      APP_AUTH_TOKEN_SECRET: ${APP_AUTH_TOKEN_SECRET:?Set APP_AUTH_TOKEN_SECRET in the environment}
+      APP_AUTH_RATE_LIMIT_WINDOW_SECONDS: ${APP_AUTH_RATE_LIMIT_WINDOW_SECONDS:-60}
+      APP_AUTH_RATE_LIMIT_MAX_ATTEMPTS: ${APP_AUTH_RATE_LIMIT_MAX_ATTEMPTS:-20}
+      APP_RBAC_ENABLED: ${APP_RBAC_ENABLED:-true}
+      APP_RBAC_ADMIN_TOKEN: ${APP_RBAC_ADMIN_TOKEN:-}
+      APP_LLM_ENABLED: ${APP_LLM_ENABLED:-true}
+      APP_LLM_BASE_URL: ${APP_LLM_BASE_URL:-http://host.docker.internal:8007/v1}
+      APP_LLM_MODEL: ${APP_LLM_MODEL:-google/gemma-4-E4B-it}
+      APP_SEARXNG_BASE_URL: ${APP_SEARXNG_BASE_URL:-http://host.docker.internal:8080}
+      APP_9ROUTER_BASE_URL: ${APP_9ROUTER_BASE_URL:-http://host.docker.internal:20128/v1}
+      APP_9ROUTER_API_KEY: ${APP_9ROUTER_API_KEY:-}
+      APP_WORDPRESS_CHROME_CDP_URL: ${APP_WORDPRESS_CHROME_CDP_URL:-http://host.docker.internal:9227}
+    ports:
+      - "${BACKEND_PORT:-8011}:8011"
+    volumes:
+      - backend_config:/app/config
+      - article_imports:/app/storage/article_imports
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8011/api/v1/ready', timeout=3).read()"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      API_PROXY_HOST: backend
+      API_PROXY_PORT: 8011
+      NEXT_PUBLIC_API_BASE: /api/v1
+      NEXT_PUBLIC_FEATURE_SESSION_HISTORY: ${NEXT_PUBLIC_FEATURE_SESSION_HISTORY:-true}
+      NEXT_PUBLIC_FEATURE_OPS_DASHBOARD: ${NEXT_PUBLIC_FEATURE_OPS_DASHBOARD:-true}
+      NEXT_PUBLIC_FEATURE_LLM_RUNTIME_CONFIG: ${NEXT_PUBLIC_FEATURE_LLM_RUNTIME_CONFIG:-true}
+      NEXT_PUBLIC_9ROUTER_DASHBOARD_URL: ${NEXT_PUBLIC_9ROUTER_DASHBOARD_URL:-http://localhost:20128/dashboard}
+    ports:
+      - "${FRONTEND_PORT:-3005}:3005"
+
+volumes:
+  postgres_data:
+  backend_config:
+  article_imports:

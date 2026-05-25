@@ -26,6 +26,11 @@ def build_client(tmp_path: Path, **overrides: object) -> TestClient:
         "llm_runtime_store_path": str(tmp_path / "llm_runtime.json"),
         "audit_log_store_path": str(tmp_path / "audit_logs.jsonl"),
         "article_import_storage_path": str(tmp_path / "article_imports"),
+        "auth_store_path": str(tmp_path / "auth_store.json"),
+        "auth_store_backend": "local",
+        "database_url": "",
+        "session_store_backend": "local",
+        "auth_token_secret": "test-secret",
         "ninerouter_api_key": "",
         "ninerouter_base_url": "",
         "llm_enabled": False,
@@ -106,6 +111,30 @@ def create_import_fixture(client: TestClient) -> dict:
         response = client.post("/api/v1/articles/import", json={"url": "https://example.com/articles/agent-tools"})
     assert response.status_code == 202
     return response.json()["data"]["run"]
+
+
+def test_article_import_rbac_requires_bearer_when_enabled(tmp_path: Path) -> None:
+    client = build_client(tmp_path, rbac_enabled=True)
+    admin = client.post("/api/v1/auth/register", json={"email": "admin@example.com", "password": "super-secret-123"})
+    token = admin.json()["data"]["access_token"]
+
+    denied = client.post("/api/v1/articles/import", json={"url": "https://example.com/articles/agent-tools"})
+    with respx.mock(assert_all_called=True) as router:
+        router.get("https://example.com/articles/agent-tools").mock(
+            return_value=Response(200, html=ARTICLE_FIXTURE, headers={"content-type": "text/html; charset=utf-8"})
+        )
+        router.get("https://example.com/images/architecture.png").mock(
+            return_value=Response(200, content=b"fake-png-bytes", headers={"content-type": "image/png"})
+        )
+        allowed = client.post(
+            "/api/v1/articles/import",
+            json={"url": "https://example.com/articles/agent-tools"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+
+    assert denied.status_code == 403
+    assert allowed.status_code == 202
+    assert allowed.json()["success"] is True
 
 
 def test_article_import_create_fetches_and_extracts_phase_b_contract(tmp_path: Path) -> None:

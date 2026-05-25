@@ -10,8 +10,9 @@ Repository: https://github.com/AnLHN/Web-agent-craw-blog.git
 2. [Kiến trúc và pipeline](architecture-pipeline.md): luồng search và Article Import/Craw Blog.
 3. [Biến môi trường](env-reference.md): root `.env`, `backend/.env`, `frontend/.env.local`.
 4. [CI/CD](ci-cd.md): GitHub Actions, checklist PR và định hướng deploy.
-5. [Task implementation note](task-web-search-implementation.md): ghi chú triển khai lịch sử.
-6. [Blog brief](blog-brief.md): mô tả ngắn để truyền thông/kể chuyện dự án.
+5. [Production readiness report](production-readiness-report.md): scope, verification, benchmark, security checklist và rollback notes.
+6. [Task implementation note](task-web-search-implementation.md): ghi chú triển khai lịch sử.
+7. [Blog brief](blog-brief.md): mô tả ngắn để truyền thông/kể chuyện dự án.
 
 ## Thành phần chính
 

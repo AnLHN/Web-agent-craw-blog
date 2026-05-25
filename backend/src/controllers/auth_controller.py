@@ -24,8 +24,27 @@ def _bearer_token(request: Request) -> str | None:
     return token
 
 
+def _client_ip(request: Request) -> str:
+    forwarded_for = request.headers.get("X-Forwarded-For", "").split(",", 1)[0].strip()
+    if forwarded_for:
+        return forwarded_for
+    return request.client.host if request.client else "unknown"
+
+
+def _rate_limited_response() -> AuthResponse:
+    return AuthResponse(
+        success=False,
+        data=None,
+        error=ErrorInfo(code="RATE_LIMITED", message="Too many auth attempts. Please retry later.", details=None),
+        meta=response_meta(),
+    )
+
+
 @router.post("/register", response_model=AuthResponse)
 def register(payload: RegisterRequest, request: Request) -> AuthResponse:
+    rate_limiter = request.app.state.services["auth_rate_limiter"]
+    if not rate_limiter.allow(f"register:{_client_ip(request)}"):
+        return _rate_limited_response()
     auth_service = request.app.state.services["auth_service"]
     try:
         user, token = auth_service.register(
@@ -46,6 +65,9 @@ def register(payload: RegisterRequest, request: Request) -> AuthResponse:
 
 @router.post("/login", response_model=AuthResponse)
 def login(payload: LoginRequest, request: Request) -> AuthResponse:
+    rate_limiter = request.app.state.services["auth_rate_limiter"]
+    if not rate_limiter.allow(f"login:{_client_ip(request)}:{payload.email}"):
+        return _rate_limited_response()
     auth_service = request.app.state.services["auth_service"]
     try:
         user, token = auth_service.login(email=payload.email, password=payload.password)

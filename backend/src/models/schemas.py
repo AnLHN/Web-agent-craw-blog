@@ -140,6 +140,43 @@ class HealthResponse(BaseModel):
     meta: ResponseMeta
 
 
+class ReadinessData(BaseModel):
+    status: str
+    checks: Dict[str, str]
+
+
+class ReadinessResponse(BaseModel):
+    success: bool
+    data: ReadinessData
+    error: Optional[ErrorInfo] = None
+    meta: ResponseMeta
+
+
+class AdminSystemStatusData(BaseModel):
+    status: str
+    environment: str
+    auth_store_backend: str
+    auth_service_type: str
+    session_store_backend: str
+    session_store_type: str
+    database_configured: bool
+    rbac_enabled: bool
+    llm_enabled: bool
+    llm_configured: bool
+    tavily_key_count: int
+    article_import_storage_path: str
+    article_import_run_count: int
+    article_import_status_counts: Dict[str, int]
+    readiness_checks: Dict[str, str]
+
+
+class AdminSystemStatusResponse(BaseModel):
+    success: bool
+    data: Optional[AdminSystemStatusData] = None
+    error: Optional[ErrorInfo] = None
+    meta: ResponseMeta
+
+
 class ChatMessage(BaseModel):
     id: str
     role: str

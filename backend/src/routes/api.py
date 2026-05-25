@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from src.controllers.admin_controller import router as admin_router
 from src.controllers.article_import_controller import router as article_import_router
 from src.controllers.auth_controller import router as auth_router
 from src.controllers.chat_controller import router as chat_router
@@ -8,6 +9,7 @@ from src.controllers.search_controller import router as search_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router, tags=["auth"])
+api_router.include_router(admin_router, tags=["admin"])
 api_router.include_router(article_import_router, tags=["article-import"])
 api_router.include_router(chat_router, tags=["chat"])
 api_router.include_router(search_router, tags=["search"])

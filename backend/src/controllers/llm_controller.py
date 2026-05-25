@@ -15,7 +15,7 @@ from src.models.schemas import (
     LlmTestResponse,
 )
 from src.utils.response import response_meta
-from src.utils.security import require_role
+from src.utils.security import require_permission, require_role
 from src.utils.feature_flags import feature_enabled
 
 router = APIRouter()
@@ -52,7 +52,8 @@ async def patch_llm_config(
             error={"code": "FEATURE_DISABLED", "message": "LLM runtime config feature is disabled", "details": None},
             meta=response_meta(),
         )
-    actor_role = require_role(request, "admin")
+    actor_user = require_permission(request, "llm:config_manage")
+    actor_role = ",".join(actor_user.roles)
     store = request.app.state.services["llm_runtime_store"]
     audit = request.app.state.services["audit_log_store"]
     update_kwargs = {}
@@ -125,7 +126,8 @@ async def llm_test(payload: LlmTestRequest, request: Request) -> LlmTestResponse
             error={"code": "FEATURE_DISABLED", "message": "LLM runtime config feature is disabled", "details": None},
             meta=response_meta(),
         )
-    actor_role = require_role(request, "operator")
+    actor_user = require_permission(request, "llm:config_manage")
+    actor_role = ",".join(actor_user.roles)
     store = request.app.state.services["llm_runtime_store"]
     settings = request.app.state.settings
     audit = request.app.state.services["audit_log_store"]

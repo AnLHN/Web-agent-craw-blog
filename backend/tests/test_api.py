@@ -45,6 +45,27 @@ def test_health_endpoint(tmp_path: Path) -> None:
     assert payload["data"]["status"] == "ok"
 
 
+def test_request_id_header_is_returned(tmp_path: Path) -> None:
+    client = build_client(tmp_path)
+
+    generated = client.get("/api/v1/health")
+    provided = client.get("/api/v1/health", headers={"X-Request-Id": "req-test-123"})
+
+    assert generated.headers["X-Request-Id"].startswith("req_")
+    assert provided.headers["X-Request-Id"] == "req-test-123"
+
+
+def test_readiness_endpoint(tmp_path: Path) -> None:
+    client = build_client(tmp_path)
+    response = client.get("/api/v1/ready")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["data"]["status"] == "ready"
+    assert payload["data"]["checks"]["auth_service"] == "ok"
+
+
 def test_validation_error_response_shape(tmp_path: Path) -> None:
     client = build_client(tmp_path)
     response = client.post("/api/v1/search", json={"query": "x", "top_k": 5})
@@ -222,34 +243,45 @@ def test_rbac_blocks_sensitive_endpoints_when_enabled(tmp_path: Path) -> None:
         tmp_path,
         rbac_enabled=True,
         rbac_admin_token="secret-admin-token",
+        auth_store_path=str(tmp_path / "auth_store.json"),
+        auth_token_secret="test-secret",
     )
+    admin = client.post("/api/v1/auth/register", json={"email": "admin@example.com", "password": "super-secret-123"})
+    admin_token = admin.json()["data"]["access_token"]
 
-    add_without_role = client.post(
+    add_without_token = client.post(
         "/api/v1/keys/tavily",
         json={"api_key": "tvly-test-key-12345", "label": "Primary"},
     )
-    assert add_without_role.status_code == 403
+    assert add_without_token.status_code == 403
 
-    add_operator = client.post(
+    add_with_header_role_only = client.post(
         "/api/v1/keys/tavily",
         json={"api_key": "tvly-test-key-12345", "label": "Primary"},
         headers={"X-Role": "operator"},
     )
-    assert add_operator.status_code == 201
+    assert add_with_header_role_only.status_code == 403
 
-    patch_llm_without_token = client.patch(
-        "/api/v1/llm/config",
-        json={"model": "abc"},
-        headers={"X-Role": "admin"},
+    add_with_bearer = client.post(
+        "/api/v1/keys/tavily",
+        json={"api_key": "tvly-test-key-12345", "label": "Primary"},
+        headers={"Authorization": f"Bearer {admin_token}"},
     )
-    assert patch_llm_without_token.status_code == 403
+    assert add_with_bearer.status_code == 201
 
-    patch_llm_with_token = client.patch(
+    patch_llm_without_bearer = client.patch(
         "/api/v1/llm/config",
         json={"model": "abc"},
         headers={"X-Role": "admin", "X-Admin-Token": "secret-admin-token"},
     )
-    assert patch_llm_with_token.status_code == 200
+    assert patch_llm_without_bearer.status_code == 403
+
+    patch_llm_with_bearer = client.patch(
+        "/api/v1/llm/config",
+        json={"model": "abc"},
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+    assert patch_llm_with_bearer.status_code == 200
 
 
 def test_feature_flags_disable_session_and_ops_endpoints(tmp_path: Path) -> None:

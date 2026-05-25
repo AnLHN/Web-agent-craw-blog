@@ -1,5 +1,7 @@
 import {
   AuditLogData,
+  AdminSystemStatusData,
+  AdminUsersData,
   ApiResponse,
   ArticleImportData,
   ArticleLlmHealthData,
@@ -57,7 +59,6 @@ export async function registerUser(payload: {
   email: string;
   password: string;
   username?: string;
-  full_name?: string;
 }): Promise<ApiResponse<AuthData>> {
   const response = await fetch(`${API_BASE}/auth/register`, {
     method: "POST",
@@ -97,6 +98,73 @@ export async function logoutUser(token: string): Promise<ApiResponse<{ status: s
     cache: "no-store",
   });
   return parseJson<ApiResponse<{ status: string }>>(response);
+}
+
+export async function fetchAdminUsers(token: string): Promise<ApiResponse<AdminUsersData>> {
+  const response = await fetch(`${API_BASE}/admin/users`, {
+    method: "GET",
+    headers: authHeaders(token),
+    cache: "no-store",
+  });
+  return parseJson<ApiResponse<AdminUsersData>>(response);
+}
+
+export async function fetchAdminAuditEvents(token: string, limit = 50): Promise<ApiResponse<AuditLogData>> {
+  const response = await fetch(`${API_BASE}/admin/audit-events?limit=${limit}`, {
+    method: "GET",
+    headers: authHeaders(token),
+    cache: "no-store",
+  });
+  return parseJson<ApiResponse<AuditLogData>>(response);
+}
+
+export async function fetchAdminSystemStatus(token: string): Promise<ApiResponse<AdminSystemStatusData>> {
+  const response = await fetch(`${API_BASE}/admin/system-status`, {
+    method: "GET",
+    headers: authHeaders(token),
+    cache: "no-store",
+  });
+  return parseJson<ApiResponse<AdminSystemStatusData>>(response);
+}
+
+export async function updateAdminUserStatus(
+  token: string,
+  userId: string,
+  status: "active" | "disabled",
+): Promise<ApiResponse<AdminUsersData>> {
+  const response = await fetch(`${API_BASE}/admin/users/${userId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders(token) },
+    body: JSON.stringify({ status }),
+    cache: "no-store",
+  });
+  return parseJson<ApiResponse<AdminUsersData>>(response);
+}
+
+export async function addAdminUserRole(
+  token: string,
+  userId: string,
+  role: "admin" | "user",
+): Promise<ApiResponse<AdminUsersData>> {
+  const response = await fetch(`${API_BASE}/admin/users/${userId}/roles/${role}`, {
+    method: "PUT",
+    headers: authHeaders(token),
+    cache: "no-store",
+  });
+  return parseJson<ApiResponse<AdminUsersData>>(response);
+}
+
+export async function removeAdminUserRole(
+  token: string,
+  userId: string,
+  role: "admin" | "user",
+): Promise<ApiResponse<AdminUsersData>> {
+  const response = await fetch(`${API_BASE}/admin/users/${userId}/roles/${role}`, {
+    method: "DELETE",
+    headers: authHeaders(token),
+    cache: "no-store",
+  });
+  return parseJson<ApiResponse<AdminUsersData>>(response);
 }
 
 export async function searchWeb(
@@ -285,12 +353,13 @@ export async function fetchTavilyKeys(): Promise<ApiResponse<TavilyKeysData>> {
 }
 
 export async function addTavilyKey(
+  token: string,
   apiKey: string,
   label: string,
 ): Promise<ApiResponse<TavilyKeysData>> {
   const response = await fetch(`${API_BASE}/keys/tavily`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...opsHeaders() },
+    headers: { "Content-Type": "application/json", ...authHeaders(token) },
     body: JSON.stringify({ api_key: apiKey, label }),
     cache: "no-store",
   });
@@ -299,11 +368,12 @@ export async function addTavilyKey(
 }
 
 export async function deleteTavilyKey(
+  token: string,
   keyId: string,
 ): Promise<ApiResponse<TavilyKeysData>> {
   const response = await fetch(`${API_BASE}/keys/tavily/${keyId}`, {
     method: "DELETE",
-    headers: opsHeaders(),
+    headers: authHeaders(token),
     cache: "no-store",
   });
 
@@ -311,12 +381,13 @@ export async function deleteTavilyKey(
 }
 
 export async function updateTavilyKey(
+  token: string,
   keyId: string,
   payload: { label?: string; status?: string },
 ): Promise<ApiResponse<TavilyKeysData>> {
   const response = await fetch(`${API_BASE}/keys/tavily/${keyId}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json", ...opsHeaders() },
+    headers: { "Content-Type": "application/json", ...authHeaders(token) },
     body: JSON.stringify(payload),
     cache: "no-store",
   });
@@ -324,11 +395,12 @@ export async function updateTavilyKey(
 }
 
 export async function resetTavilyKeyCooldown(
+  token: string,
   keyId: string,
 ): Promise<ApiResponse<TavilyKeysData>> {
   const response = await fetch(`${API_BASE}/keys/tavily/${keyId}/cooldown/reset`, {
     method: "POST",
-    headers: opsHeaders(),
+    headers: authHeaders(token),
     cache: "no-store",
   });
   return parseJson<ApiResponse<TavilyKeysData>>(response);
@@ -351,6 +423,7 @@ export async function fetchLlmConfig(): Promise<ApiResponse<LlmRuntimeConfigData
 }
 
 export async function patchLlmConfig(
+  token: string,
   payload: {
     base_url?: string;
     model?: string;
@@ -363,7 +436,7 @@ export async function patchLlmConfig(
 ): Promise<ApiResponse<LlmRuntimeConfigData>> {
   const response = await fetch(`${API_BASE}/llm/config`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json", ...opsHeaders() },
+    headers: { "Content-Type": "application/json", ...authHeaders(token) },
     body: JSON.stringify(payload),
     cache: "no-store",
   });
@@ -378,10 +451,10 @@ export async function fetchLlmHealth(): Promise<ApiResponse<LlmHealthData>> {
   return parseJson<ApiResponse<LlmHealthData>>(response);
 }
 
-export async function runLlmTest(prompt: string): Promise<ApiResponse<LlmTestData>> {
+export async function runLlmTest(token: string, prompt: string): Promise<ApiResponse<LlmTestData>> {
   const response = await fetch(`${API_BASE}/llm/test`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...opsHeaders() },
+    headers: { "Content-Type": "application/json", ...authHeaders(token) },
     body: JSON.stringify({ prompt }),
     cache: "no-store",
   });
@@ -397,7 +470,7 @@ export async function fetchAuditLogs(limit = 50): Promise<ApiResponse<AuditLogDa
   return parseJson<ApiResponse<AuditLogData>>(response);
 }
 
-export async function importArticle(payload: {
+export async function importArticle(token: string, payload: {
   url: string;
   mode?: "draft" | "preview";
   target_language?: string;
@@ -407,7 +480,7 @@ export async function importArticle(payload: {
 }): Promise<ApiResponse<ArticleImportData>> {
   const response = await fetch(`${API_BASE}/articles/import`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders(token) },
     body: JSON.stringify(payload),
     cache: "no-store",
   });
@@ -422,25 +495,28 @@ export async function fetchArticleImport(runId: string): Promise<ApiResponse<Art
   return parseJson<ApiResponse<ArticleImportData>>(response);
 }
 
-export async function dryRunWordPressImport(runId: string): Promise<ApiResponse<ArticleImportData>> {
+export async function dryRunWordPressImport(token: string, runId: string): Promise<ApiResponse<ArticleImportData>> {
   const response = await fetch(`${API_BASE}/articles/import/${runId}/wordpress/dry-run`, {
     method: "POST",
+    headers: authHeaders(token),
     cache: "no-store",
   });
   return parseJson<ApiResponse<ArticleImportData>>(response);
 }
 
-export async function translateArticleImport(runId: string): Promise<ApiResponse<ArticleImportData>> {
+export async function translateArticleImport(token: string, runId: string): Promise<ApiResponse<ArticleImportData>> {
   const response = await fetch(`${API_BASE}/articles/import/${runId}/translate`, {
     method: "POST",
+    headers: authHeaders(token),
     cache: "no-store",
   });
   return parseJson<ApiResponse<ArticleImportData>>(response);
 }
 
-export async function pasteWordPressImport(runId: string): Promise<ApiResponse<ArticleImportData>> {
+export async function pasteWordPressImport(token: string, runId: string): Promise<ApiResponse<ArticleImportData>> {
   const response = await fetch(`${API_BASE}/articles/import/${runId}/wordpress/paste`, {
     method: "POST",
+    headers: authHeaders(token),
     cache: "no-store",
   });
   return parseJson<ApiResponse<ArticleImportData>>(response);

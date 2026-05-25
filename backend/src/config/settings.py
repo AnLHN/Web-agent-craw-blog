@@ -60,7 +60,10 @@ class Settings(BaseSettings):
     llm_runtime_store_path: str = "config/llm_runtime.json"
     audit_log_store_path: str = "config/audit_logs.jsonl"
     auth_store_path: str = "config/auth_store.json"
+    auth_store_backend: str = "auto"
     auth_token_secret: str = "dev-auth-secret-change-me"
+    auth_rate_limit_window_seconds: int = 60
+    auth_rate_limit_max_attempts: int = 20
     chat_session_retention_days: int = 30
     rbac_enabled: bool = False
     rbac_admin_token: str = ""

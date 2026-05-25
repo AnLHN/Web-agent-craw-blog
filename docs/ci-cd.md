@@ -6,7 +6,7 @@ Dự án dùng GitHub Actions cho CI. Repository mục tiêu:
 https://github.com/AnLHN/Web-agent-craw-blog.git
 ```
 
-CD chưa bật vì chưa có môi trường deploy chính thức. Khi có staging/production, nên thêm workflow deploy riêng thay vì trộn vào CI.
+CI đã có; production/staging local hiện dùng `docker-compose.production.yml`. CD lên môi trường thật chưa bật vì chưa có target deploy chính thức; khi có staging/production cloud, nên thêm workflow deploy riêng thay vì trộn vào CI.
 
 ## Workflow hiện tại
 
@@ -125,12 +125,13 @@ Nếu sửa Article Import/crawl blog, nên kiểm tra thêm:
 - Translation partial có thể bấm Translate để resume phần còn thiếu.
 - Dry Run WordPress không paste nội dung; Paste Draft mới paste thật.
 
-Nếu sửa Auth/Admin/RBAC sau này, CI nên có thêm:
+Nếu sửa Auth/Admin/RBAC, giữ các coverage sau chạy pass:
 
 - migration test cho bảng `users`, `roles`, `user_roles`, `permissions`, `role_permissions`, `user_sessions`, `admin_profiles`, `admin_audit_events`;
 - API tests cho register/login/logout/me;
 - permission tests cho user/admin;
-- frontend route-guard smoke tests cho `/login`, `/register`, `/admin/users`.
+- Postgres auth service tests cho register/login/current user/logout/status/roles;
+- frontend auth/admin smoke qua build và kiểm tra thủ công admin modal nếu có thay đổi UI.
 
 ## Chuẩn branch/PR đề xuất
 
@@ -142,7 +143,7 @@ Nếu sửa Auth/Admin/RBAC sau này, CI nên có thêm:
 
 ## Production deliverables theo yêu cầu cấp trên
 
-Khi chuyển sang production, CI/CD nên tạo hoặc kiểm tra các artifact sau:
+Phase 8 local production-readiness hiện đã tạo/kiểm tra các artifact sau; CD thật nên tiếp tục publish chúng theo môi trường:
 
 - **Completion report**: Markdown tổng hợp scope, test result, benchmark, security checklist, known limitations, rollback.
 - **Benchmark report**: Markdown + JSON cho backend latency, search quality/latency, Article Import timings, retry/partial rate.
@@ -150,7 +151,7 @@ Khi chuyển sang production, CI/CD nên tạo hoặc kiểm tra các artifact s
 - **Usage model**: mô tả user thường, admin/operator, system/CI và failure model.
 - **Admin monitoring checklist**: users/roles, audit events, health checks, key/LLM config, Article Import status.
 
-Production gate không pass nếu thiếu auth/RBAC thật, admin monitoring page, migrations, CI green, benchmark report, pipeline diagrams, secret hygiene và security review.
+Production gate không pass nếu thiếu auth/RBAC thật, admin monitoring page, migrations, CI green, benchmark report, pipeline diagrams, secret hygiene và security review. Local Phase 8 đã có các mục này ở mức baseline; deploy public vẫn cần môi trường thật, secret manager, backup/restore và approval workflow.
 
 ## Định hướng CD sau này
 

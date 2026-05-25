@@ -1,4 +1,7 @@
+import json
 import logging
+import time
+from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -12,7 +15,7 @@ from src.services.evidence_merge_service import EvidenceMergeService
 from src.services.chat_session_store_factory import build_chat_session_store
 from src.services.context_query_rewriter_service import ContextQueryRewriterService
 from src.services.audit_log_store import AuditLogStore
-from src.services.auth_service import AuthService
+from src.services.auth_service_factory import build_auth_service
 from src.services.article_asset_service import ArticleAssetService
 from src.services.article_extractor_service import ArticleExtractorService
 from src.services.article_fetcher_service import ArticleFetcherService
@@ -24,6 +27,7 @@ from src.services.llm_summary_service import LlmSummaryService
 from src.services.query_analyst_service import QueryAnalystService
 from src.services.query_planner_service import QueryPlannerService
 from src.services.query_cache import QueryCache
+from src.services.rate_limiter import InMemoryRateLimiter
 from src.services.search_orchestrator import SearchOrchestrator
 from src.services.searxng_service import SearxngSearchService
 from src.services.tavily_service import TavilySearchService
@@ -48,7 +52,11 @@ def build_services(settings: Settings) -> dict:
         flush=True,
     )
     audit_log_store = AuditLogStore(file_path=settings.audit_log_store_path)
-    auth_service = AuthService(file_path=settings.auth_store_path, secret=settings.auth_token_secret)
+    auth_service = build_auth_service(settings)
+    auth_rate_limiter = InMemoryRateLimiter(
+        window_seconds=settings.auth_rate_limit_window_seconds,
+        max_attempts=settings.auth_rate_limit_max_attempts,
+    )
     article_fetcher_service = ArticleFetcherService(settings=settings)
     article_extractor_service = ArticleExtractorService()
     article_asset_service = ArticleAssetService(settings=settings)
@@ -94,6 +102,7 @@ def build_services(settings: Settings) -> dict:
         "llm_runtime_store": llm_runtime_store,
         "audit_log_store": audit_log_store,
         "auth_service": auth_service,
+        "auth_rate_limiter": auth_rate_limiter,
         "article_fetcher_service": article_fetcher_service,
         "article_extractor_service": article_extractor_service,
         "article_asset_service": article_asset_service,
@@ -128,6 +137,30 @@ def create_app(settings_override: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.services = build_services(settings)
 
+    @app.middleware("http")
+    async def request_logging_middleware(request: Request, call_next):
+        request_id = request.headers.get("X-Request-Id") or f"req_{uuid4().hex}"
+        request.state.request_id = request_id
+        started = time.perf_counter()
+        response = await call_next(request)
+        duration_ms = round((time.perf_counter() - started) * 1000, 2)
+        response.headers["X-Request-Id"] = request_id
+        logger.info(
+            json.dumps(
+                {
+                    "event": "http_request",
+                    "request_id": request_id,
+                    "method": request.method,
+                    "path": request.url.path,
+                    "status_code": response.status_code,
+                    "duration_ms": duration_ms,
+                    "client_ip": request.client.host if request.client else None,
+                },
+                ensure_ascii=True,
+            )
+        )
+        return response
+
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(
         request: Request,
@@ -145,7 +178,7 @@ def create_app(settings_override: Settings | None = None) -> FastAPI:
                 },
                 "meta": {
                     "timestamp": utc_now_iso(),
-                    "request_id": request.headers.get("X-Request-Id"),
+                    "request_id": getattr(request.state, "request_id", request.headers.get("X-Request-Id")),
                 },
             },
         )
@@ -164,7 +197,7 @@ def create_app(settings_override: Settings | None = None) -> FastAPI:
                 },
                 "meta": {
                     "timestamp": utc_now_iso(),
-                    "request_id": request.headers.get("X-Request-Id"),
+                    "request_id": getattr(request.state, "request_id", request.headers.get("X-Request-Id")),
                 },
             },
         )
@@ -186,7 +219,7 @@ def create_app(settings_override: Settings | None = None) -> FastAPI:
                 },
                 "meta": {
                     "timestamp": utc_now_iso(),
-                    "request_id": request.headers.get("X-Request-Id"),
+                    "request_id": getattr(request.state, "request_id", request.headers.get("X-Request-Id")),
                 },
             },
         )
@@ -206,7 +239,7 @@ def create_app(settings_override: Settings | None = None) -> FastAPI:
                 },
                 "meta": {
                     "timestamp": utc_now_iso(),
-                    "request_id": request.headers.get("X-Request-Id"),
+                    "request_id": getattr(request.state, "request_id", request.headers.get("X-Request-Id")),
                 },
             },
         )

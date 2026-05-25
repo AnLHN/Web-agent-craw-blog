@@ -16,7 +16,8 @@ Repository: https://github.com/AnLHN/Web-agent-craw-blog.git
 - Dịch bài theo batch nhỏ qua 9Router GPT 5.5 (`cx/gpt-5.5`), có retry lỗi 429/500/502/503/504 và resume phần chưa dịch.
 - Giữ link qua dịch bằng placeholder `[LINK_n:label]`, render lại anchor inline trong paragraph/quote/bullet sau dịch.
 - WordPress automation qua Chrome/Brave/Edge CDP port riêng `9227`: dry-run kiểm tra tab WordPress và paste draft khi sẵn sàng.
-- Ops Dashboard để kiểm tra Tavily key, LLM health/test, audit logs, 9Router health.
+- Settings UI cho tài khoản, search, Article Import, 9Router/WordPress status và Tavily key theo quyền.
+- Ops Dashboard để kiểm tra Tavily key, LLM health/test, audit logs, system status, 9Router health.
 - Script đa nền tảng: Bash cho Linux/macOS/Git Bash, PowerShell cho Windows.
 - GitHub Actions CI chạy backend tests, frontend lint và frontend build.
 
@@ -232,8 +233,7 @@ cd backend && ../.venv/Scripts/python.exe -m pytest -q
 cd ../frontend && npm run lint && npm run build
 ```
 
-CD chưa bật vì chưa có target deploy chính thức. Khi có staging/production, thêm workflow deploy riêng với GitHub Environments, Secrets và approval production.
-
+Production/staging local dùng `docker-compose.production.yml`; CD cloud chưa bật vì chưa có target deploy chính thức. Khi có staging/production thật, thêm workflow deploy riêng với GitHub Environments, Secrets và approval production.
 Chi tiết xem [docs/ci-cd.md](docs/ci-cd.md).
 
 ## Dọn Docker local

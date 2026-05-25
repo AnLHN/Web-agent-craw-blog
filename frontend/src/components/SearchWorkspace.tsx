@@ -3,9 +3,12 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import {
+  addAdminUserRole,
   addTavilyKey,
   createChatSession,
   deleteChatSession,
+  fetchAdminAuditEvents,
+  fetchAdminUsers,
   fetchCurrentUser,
   deleteTavilyKey,
   fetchTavilyKeys,
@@ -14,9 +17,11 @@ import {
   loginUser,
   logoutUser,
   registerUser,
+  removeAdminUserRole,
   searchWebStream,
+  updateAdminUserStatus,
 } from "@/services/apiClient";
-import { AuthUser, ChatSession, SearchData, SearchStreamStatusEvent, TavilyKeyInfo } from "@/types/api";
+import { AuditLogItem, AuthUser, ChatSession, SearchData, SearchStreamStatusEvent, TavilyKeyInfo } from "@/types/api";
 import { prettyDate } from "@/utils/date";
 
 import { ArticleImportPanel } from "./ArticleImportPanel";
@@ -26,13 +31,13 @@ import { PromptManagerPanel } from "./PromptManagerPopup";
 import { SearchResultPanel } from "./SearchResultPanel";
 
 type WorkspaceMode = "web-search" | "article-import";
-type TabKey = "tavily-keys" | "ops" | "prompts";
+type AdminTabKey = "users" | "audit" | "tavily-keys" | "ops" | "prompts" | "auth";
 type AuthMode = "login" | "register";
 
 const AUTH_TOKEN_KEY = "web_agent_auth_token";
 
-type NavItem = {
-  key: TabKey;
+type AdminNavItem = {
+  key: AdminTabKey;
   label: string;
   shortLabel: string;
 };
@@ -96,6 +101,7 @@ export function SearchWorkspace() {
   const featureLlmRuntimeConfig =
     (process.env.NEXT_PUBLIC_FEATURE_LLM_RUNTIME_CONFIG || "true").toLowerCase() !== "false";
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [authToken, setAuthToken] = useState<string | null>(() => {
     if (typeof window === "undefined") {
@@ -107,11 +113,10 @@ export function SearchWorkspace() {
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
   const [authUsername, setAuthUsername] = useState("");
-  const [authFullName, setAuthFullName] = useState("");
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>("web-search");
-  const [activeTab, setActiveTab] = useState<TabKey>("tavily-keys");
+  const [activeAdminTab, setActiveAdminTab] = useState<AdminTabKey>("users");
   const [query, setQuery] = useState("");
   const [topK, setTopK] = useState(5);
 
@@ -126,6 +131,13 @@ export function SearchWorkspace() {
   const [keys, setKeys] = useState<TavilyKeyInfo[]>([]);
   const [isLoadingKeys, setIsLoadingKeys] = useState(false);
   const [keysError, setKeysError] = useState<string | null>(null);
+
+  const [adminUsers, setAdminUsers] = useState<AuthUser[]>([]);
+  const [isLoadingAdminUsers, setIsLoadingAdminUsers] = useState(false);
+  const [adminUsersError, setAdminUsersError] = useState<string | null>(null);
+  const [adminAuditEvents, setAdminAuditEvents] = useState<AuditLogItem[]>([]);
+  const [isLoadingAdminAudit, setIsLoadingAdminAudit] = useState(false);
+  const [adminAuditError, setAdminAuditError] = useState<string | null>(null);
 
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -150,6 +162,13 @@ export function SearchWorkspace() {
     }
     return humanizeStatus(latest.status);
   }, [isSearching, streamStatuses]);
+
+  const isAdmin = Boolean(currentUser?.roles.includes("admin"));
+  const canManageKeys = Boolean(isAdmin || currentUser?.permissions.includes("keys:tavily_manage"));
+  const canViewOpsDashboard = Boolean(isAdmin || currentUser?.permissions.includes("ops:audit_read"));
+  const canManagePrompts = Boolean(isAdmin || currentUser?.permissions.includes("llm:config_manage"));
+  const canViewAuthState = Boolean(isAdmin || currentUser?.permissions.includes("admin:users_read"));
+  const canViewAdminPanel = canManageKeys || canViewOpsDashboard || canManagePrompts || canViewAuthState;
 
   function resetChatDraftAndResult() {
     setQuery("");
@@ -187,6 +206,46 @@ export function SearchWorkspace() {
       setKeysError("Khong ket noi duoc backend.");
     } finally {
       setIsLoadingKeys(false);
+    }
+  }
+
+  async function loadAdminUsers() {
+    if (!authToken) {
+      return;
+    }
+    setIsLoadingAdminUsers(true);
+    try {
+      const response = await fetchAdminUsers(authToken);
+      if (!response.success || !response.data) {
+        setAdminUsersError(response.error?.message || "Khong the tai danh sach user.");
+        return;
+      }
+      setAdminUsers(response.data.users);
+      setAdminUsersError(null);
+    } catch {
+      setAdminUsersError("Khong ket noi duoc backend admin API.");
+    } finally {
+      setIsLoadingAdminUsers(false);
+    }
+  }
+
+  async function loadAdminAuditEvents() {
+    if (!authToken) {
+      return;
+    }
+    setIsLoadingAdminAudit(true);
+    try {
+      const response = await fetchAdminAuditEvents(authToken, 80);
+      if (!response.success || !response.data) {
+        setAdminAuditError(response.error?.message || "Khong the tai audit events.");
+        return;
+      }
+      setAdminAuditEvents(response.data.events);
+      setAdminAuditError(null);
+    } catch {
+      setAdminAuditError("Khong ket noi duoc backend audit API.");
+    } finally {
+      setIsLoadingAdminAudit(false);
     }
   }
 
@@ -332,11 +391,20 @@ export function SearchWorkspace() {
       return;
     }
     const timerId = window.setTimeout(() => {
-      if (featureSessionHistory) {
-        void Promise.all([loadKeys(), loadSessionHistory()]);
-      } else {
-        void loadKeys();
+      const bootTasks: Promise<void>[] = [];
+      if (canManageKeys) {
+        bootTasks.push(loadKeys());
       }
+      if (canViewAuthState) {
+        bootTasks.push(loadAdminUsers());
+      }
+      if (canViewOpsDashboard) {
+        bootTasks.push(loadAdminAuditEvents());
+      }
+      if (featureSessionHistory) {
+        bootTasks.push(loadSessionHistory());
+      }
+      void Promise.all(bootTasks);
     }, 0);
 
     return () => {
@@ -357,7 +425,6 @@ export function SearchWorkspace() {
             email: authEmail,
             password: authPassword,
             username: authUsername.trim() || undefined,
-            full_name: authFullName.trim() || undefined,
           });
       if (!response.success || !response.data) {
         setAuthError(response.error?.message || "Authentication failed.");
@@ -450,7 +517,11 @@ export function SearchWorkspace() {
     setKeysError(null);
     setIsLoadingKeys(true);
     try {
-      const response = await addTavilyKey(apiKey, label);
+      if (!authToken) {
+        setKeysError("Vui long dang nhap lai.");
+        return;
+      }
+      const response = await addTavilyKey(authToken, apiKey, label);
       if (!response.success || !response.data) {
         setKeysError(response.error?.message || "Khong the them key.");
         return;
@@ -467,7 +538,11 @@ export function SearchWorkspace() {
     setKeysError(null);
     setIsLoadingKeys(true);
     try {
-      const response = await deleteTavilyKey(keyId);
+      if (!authToken) {
+        setKeysError("Vui long dang nhap lai.");
+        return;
+      }
+      const response = await deleteTavilyKey(authToken, keyId);
       if (!response.success || !response.data) {
         setKeysError(response.error?.message || "Khong the xoa key.");
         return;
@@ -480,13 +555,52 @@ export function SearchWorkspace() {
     }
   }
 
-  const navItems: NavItem[] = [
-    { key: "tavily-keys", label: "Tavily Keys", shortLabel: "Keys" },
-    ...(featureOpsDashboard ? [{ key: "ops" as const, label: "Ops Dashboard", shortLabel: "Ops" }] : []),
-    ...(featureLlmRuntimeConfig
+  async function handleUpdateUserStatus(userId: string, status: "active" | "disabled") {
+    if (!authToken) {
+      return;
+    }
+    const response = await updateAdminUserStatus(authToken, userId, status);
+    if (!response.success || !response.data) {
+      setAdminUsersError(response.error?.message || "Khong cap nhat duoc user.");
+      return;
+    }
+    setAdminUsers(response.data.users);
+    setAdminUsersError(null);
+    await loadAdminAuditEvents();
+  }
+
+  async function handleToggleAdminRole(user: AuthUser) {
+    if (!authToken) {
+      return;
+    }
+    const hasAdmin = user.roles.includes("admin");
+    const response = hasAdmin
+      ? await removeAdminUserRole(authToken, user.id, "admin")
+      : await addAdminUserRole(authToken, user.id, "admin");
+    if (!response.success || !response.data) {
+      setAdminUsersError(response.error?.message || "Khong cap nhat duoc role.");
+      return;
+    }
+    setAdminUsers(response.data.users);
+    setAdminUsersError(null);
+    await loadAdminAuditEvents();
+  }
+
+  const adminNavItems: AdminNavItem[] = [
+    ...(canViewAuthState ? [{ key: "users" as const, label: "Users", shortLabel: "Users" }] : []),
+    ...(canViewOpsDashboard ? [{ key: "audit" as const, label: "Audit", shortLabel: "Audit" }] : []),
+    ...(canManageKeys ? [{ key: "tavily-keys" as const, label: "Tavily Keys", shortLabel: "Keys" }] : []),
+    ...(featureOpsDashboard && canViewOpsDashboard
+      ? [{ key: "ops" as const, label: "Ops Dashboard", shortLabel: "Ops" }]
+      : []),
+    ...(featureLlmRuntimeConfig && canManagePrompts
       ? [{ key: "prompts" as const, label: "Prompt Manager", shortLabel: "Prompts" }]
       : []),
+    ...(canViewAuthState ? [{ key: "auth" as const, label: "Auth State", shortLabel: "Auth" }] : []),
   ];
+  const visibleAdminTab = adminNavItems.some((item) => item.key === activeAdminTab)
+    ? activeAdminTab
+    : adminNavItems[0]?.key;
 
   function renderAuthGate() {
     return (
@@ -521,15 +635,6 @@ export function SearchWorkspace() {
                     type="text"
                     value={authUsername}
                     onChange={(event) => setAuthUsername(event.target.value)}
-                    className="rounded-xl border border-blue-100 px-3 py-2 text-sm focus:border-orange-400 focus:outline-none"
-                  />
-                </label>
-                <label className="grid gap-1 text-sm font-medium text-stone-700">
-                  Full name
-                  <input
-                    type="text"
-                    value={authFullName}
-                    onChange={(event) => setAuthFullName(event.target.value)}
                     className="rounded-xl border border-blue-100 px-3 py-2 text-sm focus:border-orange-400 focus:outline-none"
                   />
                 </label>
@@ -692,6 +797,15 @@ export function SearchWorkspace() {
           >
             Cài đặt
           </button>
+          {canViewAdminPanel ? (
+            <button
+              type="button"
+              onClick={() => setAdminOpen(true)}
+              className="w-full rounded-xl border border-orange-200/50 bg-white/8 px-3 py-2 text-left text-sm font-semibold text-white hover:bg-white/10"
+            >
+              Quản trị
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => void handleLogout()}
@@ -704,24 +818,228 @@ export function SearchWorkspace() {
     );
   }
 
-  function renderSettingsContent() {
-    if (activeTab === "ops" && featureOpsDashboard) {
-      return <OpsDashboard onKeysChanged={loadKeys} />;
-    }
+  function renderAdminUsersPanel() {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase text-orange-600">Admin</p>
+            <h3 className="text-xl font-semibold text-stone-950">Users</h3>
+            <p className="mt-1 text-sm text-stone-600">Danh sách tài khoản trong hệ thống.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void loadAdminUsers()}
+            className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-800 hover:bg-blue-50"
+          >
+            Refresh
+          </button>
+        </div>
 
-    if (activeTab === "prompts" && featureLlmRuntimeConfig) {
-      return <PromptManagerPanel />;
+        {adminUsersError ? <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{adminUsersError}</p> : null}
+
+        <div className="overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm">
+          <div className="grid grid-cols-[1.4fr_1fr_0.8fr_1fr_1.2fr] gap-3 border-b border-blue-100 bg-blue-50/60 px-4 py-3 text-xs font-semibold uppercase text-blue-700">
+            <span>Email</span>
+            <span>Roles</span>
+            <span>Status</span>
+            <span>Last login</span>
+            <span>Actions</span>
+          </div>
+          {isLoadingAdminUsers ? <p className="px-4 py-4 text-sm text-stone-500">Loading...</p> : null}
+          {!isLoadingAdminUsers && adminUsers.length === 0 ? (
+            <p className="px-4 py-4 text-sm text-stone-500">Chưa có user.</p>
+          ) : null}
+          {adminUsers.map((user) => (
+            <div
+              key={user.id}
+              className="grid grid-cols-[1.4fr_1fr_0.8fr_1fr_1.2fr] gap-3 border-b border-blue-50 px-4 py-3 text-sm last:border-b-0"
+            >
+              <div className="min-w-0">
+                <p className="truncate font-medium text-stone-900">{user.email}</p>
+                <p className="truncate text-xs text-stone-500">{user.username || user.full_name || user.id}</p>
+              </div>
+              <p className="text-stone-700">{user.roles.join(", ") || "user"}</p>
+              <p className="text-stone-700">{user.status}</p>
+              <p className="text-stone-700">{user.last_login_at ? prettyDate(user.last_login_at) : "-"}</p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleUpdateUserStatus(user.id, user.status === "active" ? "disabled" : "active")}
+                  className="rounded-lg border border-blue-200 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                >
+                  {user.status === "active" ? "Disable" : "Enable"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleToggleAdminRole(user)}
+                  className="rounded-lg border border-orange-200 px-2 py-1 text-xs font-medium text-orange-700 hover:bg-orange-50"
+                >
+                  {user.roles.includes("admin") ? "Remove admin" : "Make admin"}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  function renderAuditPanel() {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase text-orange-600">Admin</p>
+            <h3 className="text-xl font-semibold text-stone-950">Audit</h3>
+            <p className="mt-1 text-sm text-stone-600">Các thao tác quản trị và vận hành gần đây.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void loadAdminAuditEvents()}
+            className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-800 hover:bg-blue-50"
+          >
+            Refresh
+          </button>
+        </div>
+
+        {adminAuditError ? <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{adminAuditError}</p> : null}
+
+        <div className="overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm">
+          <div className="grid grid-cols-[1fr_1fr_1fr_1.5fr] gap-3 border-b border-blue-100 bg-blue-50/60 px-4 py-3 text-xs font-semibold uppercase text-blue-700">
+            <span>Time</span>
+            <span>Actor</span>
+            <span>Action</span>
+            <span>Target</span>
+          </div>
+          {isLoadingAdminAudit ? <p className="px-4 py-4 text-sm text-stone-500">Loading...</p> : null}
+          {!isLoadingAdminAudit && adminAuditEvents.length === 0 ? (
+            <p className="px-4 py-4 text-sm text-stone-500">Chưa có audit event.</p>
+          ) : null}
+          {adminAuditEvents.map((event, index) => (
+            <div
+              key={`${event.timestamp}-${event.action}-${index}`}
+              className="grid grid-cols-[1fr_1fr_1fr_1.5fr] gap-3 border-b border-blue-50 px-4 py-3 text-sm last:border-b-0"
+            >
+              <p className="text-stone-700">{prettyDate(event.timestamp)}</p>
+              <p className="text-stone-700">{event.actor_role}</p>
+              <p className="font-medium text-stone-900">{event.action}</p>
+              <p className="truncate text-stone-700">
+                {event.method} {event.path} · {event.status}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  function renderAdminPanel() {
+    if (!currentUser) {
+      return null;
     }
 
     return (
-      <KeyManager
-        keys={keys}
-        isLoading={isLoadingKeys}
-        errorMessage={keysError}
-        onAdd={handleAddKey}
-        onDelete={handleDeleteKey}
-      />
+      <div className="space-y-4">
+        <div>
+          <p className="text-xs font-semibold uppercase text-orange-600">Admin</p>
+          <h3 className="text-xl font-semibold text-stone-950">Auth state</h3>
+          <p className="mt-1 text-sm text-stone-600">Thông tin tài khoản và quyền hiện tại.</p>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+            <p className="text-xs font-semibold uppercase text-blue-600">User</p>
+            <dl className="mt-3 space-y-2 text-sm">
+              <div>
+                <dt className="text-stone-500">Email</dt>
+                <dd className="font-medium text-stone-900">{currentUser.email}</dd>
+              </div>
+              <div>
+                <dt className="text-stone-500">Username</dt>
+                <dd className="font-medium text-stone-900">{currentUser.username || "-"}</dd>
+              </div>
+              <div>
+                <dt className="text-stone-500">Status</dt>
+                <dd className="font-medium text-stone-900">{currentUser.status}</dd>
+              </div>
+              <div>
+                <dt className="text-stone-500">Last login</dt>
+                <dd className="font-medium text-stone-900">
+                  {currentUser.last_login_at ? prettyDate(currentUser.last_login_at) : "-"}
+                </dd>
+              </div>
+            </dl>
+          </div>
+
+          <div className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+            <p className="text-xs font-semibold uppercase text-blue-600">Access</p>
+            <div className="mt-3 space-y-3">
+              <div>
+                <p className="text-sm font-medium text-stone-700">Roles</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {currentUser.roles.map((role) => (
+                    <span key={role} className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                      {role}
+                    </span>
+                  ))}
+                  {currentUser.roles.length === 0 ? <span className="text-sm text-stone-500">No roles</span> : null}
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-stone-700">Permissions</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {currentUser.permissions.map((permission) => (
+                    <span
+                      key={permission}
+                      className="rounded-full border border-orange-100 bg-orange-50 px-3 py-1 text-xs font-semibold text-orange-700"
+                    >
+                      {permission}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     );
+  }
+
+  function renderAdminContent() {
+    if (visibleAdminTab === "users" && canViewAuthState) {
+      return renderAdminUsersPanel();
+    }
+
+    if (visibleAdminTab === "audit" && canViewOpsDashboard) {
+      return renderAuditPanel();
+    }
+
+    if (visibleAdminTab === "ops" && featureOpsDashboard && canViewOpsDashboard) {
+      return <OpsDashboard authToken={authToken || ""} onKeysChanged={loadKeys} />;
+    }
+
+    if (visibleAdminTab === "prompts" && featureLlmRuntimeConfig && canManagePrompts) {
+      return <PromptManagerPanel authToken={authToken || ""} />;
+    }
+
+    if (visibleAdminTab === "auth" && canViewAuthState) {
+      return renderAdminPanel();
+    }
+
+    if (canManageKeys) {
+      return (
+        <KeyManager
+          keys={keys}
+          isLoading={isLoadingKeys}
+          errorMessage={keysError}
+          onAdd={handleAddKey}
+          onDelete={handleDeleteKey}
+        />
+      );
+    }
+
+    return <p className="text-sm text-stone-600">Bạn không có quyền quản trị.</p>;
   }
 
   function renderSettingsModal() {
@@ -731,11 +1049,11 @@ export function SearchWorkspace() {
 
     return (
       <div className="fixed inset-0 z-50 bg-blue-950/45 p-3 backdrop-blur-sm md:p-6">
-        <div className="mx-auto flex h-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-blue-100 bg-[#f8fbff] shadow-2xl">
+        <div className="mx-auto flex max-h-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-blue-100 bg-[#f8fbff] shadow-2xl">
           <div className="flex items-center justify-between border-b border-blue-100 bg-white px-5 py-4">
             <div>
               <p className="text-xs font-semibold uppercase text-orange-600">Cài đặt</p>
-              <h2 className="text-lg font-semibold text-stone-900">Quản lý hệ thống</h2>
+              <h2 className="text-lg font-semibold text-stone-900">Tài khoản và cấu hình nhanh</h2>
             </div>
             <button
               type="button"
@@ -746,15 +1064,139 @@ export function SearchWorkspace() {
             </button>
           </div>
 
+          <div className="space-y-4 overflow-y-auto p-5">
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase text-blue-600">Tài khoản</p>
+                <dl className="mt-3 space-y-2 text-sm">
+                  <div>
+                    <dt className="text-stone-500">Username</dt>
+                    <dd className="font-medium text-stone-900">{currentUser?.username || "-"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-stone-500">Email</dt>
+                    <dd className="font-medium text-stone-900">{currentUser?.email}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-stone-500">Role</dt>
+                    <dd className="font-medium text-stone-900">{currentUser?.roles.join(", ") || "user"}</dd>
+                  </div>
+                </dl>
+                <button
+                  type="button"
+                  onClick={() => void handleLogout()}
+                  className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-100"
+                >
+                  Đăng xuất
+                </button>
+              </div>
+
+              <div className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase text-blue-600">Tìm kiếm</p>
+                <dl className="mt-3 space-y-2 text-sm">
+                  <div>
+                    <dt className="text-stone-500">Số nguồn mặc định</dt>
+                    <dd className="font-medium text-stone-900">{topK}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-stone-500">Session history</dt>
+                    <dd className="font-medium text-stone-900">{featureSessionHistory ? "Bật" : "Tắt"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-stone-500">API base</dt>
+                    <dd className="break-all font-medium text-stone-900">{process.env.NEXT_PUBLIC_API_BASE || "/api/v1"}</dd>
+                  </div>
+                </dl>
+              </div>
+
+              <div className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase text-blue-600">Article Import</p>
+                <dl className="mt-3 space-y-2 text-sm">
+                  <div>
+                    <dt className="text-stone-500">Ngôn ngữ dịch</dt>
+                    <dd className="font-medium text-stone-900">Tiếng Việt</dd>
+                  </div>
+                  <div>
+                    <dt className="text-stone-500">Tốc độ dịch</dt>
+                    <dd className="font-medium text-stone-900">Cân bằng tối ưu</dd>
+                  </div>
+                  <div>
+                    <dt className="text-stone-500">Glossary mặc định</dt>
+                    <dd className="font-medium text-stone-900">ai-default</dd>
+                  </div>
+                </dl>
+                <p className="mt-3 text-xs text-stone-500">Backend dịch theo batch vừa phải để nhanh hơn nhưng vẫn hạn chế timeout/rate-limit.</p>
+              </div>
+
+              <div className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase text-blue-600">9Router và WordPress</p>
+                <dl className="mt-3 space-y-2 text-sm">
+                  <div>
+                    <dt className="text-stone-500">9Router dashboard</dt>
+                    <dd className="break-all font-medium text-stone-900">{process.env.NEXT_PUBLIC_9ROUTER_DASHBOARD_URL || "http://localhost:20128/dashboard"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-stone-500">Article model</dt>
+                    <dd className="font-medium text-stone-900">cx/gpt-5.5</dd>
+                  </div>
+                  <div>
+                    <dt className="text-stone-500">WordPress target</dt>
+                    <dd className="break-all font-medium text-stone-900">Thiết lập trong Article Import</dd>
+                  </div>
+                </dl>
+              </div>
+            </div>
+
+            {canManageKeys ? (
+              <KeyManager
+                keys={keys}
+                isLoading={isLoadingKeys}
+                errorMessage={keysError}
+                onAdd={handleAddKey}
+                onDelete={handleDeleteKey}
+              />
+            ) : (
+              <div className="rounded-2xl border border-blue-100 bg-white p-4 text-sm text-stone-600 shadow-sm">
+                Tavily keys do admin cấu hình. Nếu search không có Tavily key, backend sẽ dùng fallback SearXNG khi khả dụng.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderAdminModal() {
+    if (!adminOpen || !canViewAdminPanel) {
+      return null;
+    }
+
+    return (
+      <div className="fixed inset-0 z-50 bg-blue-950/45 p-3 backdrop-blur-sm md:p-6">
+        <div className="mx-auto flex h-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-blue-100 bg-[#f8fbff] shadow-2xl">
+          <div className="flex items-center justify-between border-b border-blue-100 bg-white px-5 py-4">
+            <div>
+              <p className="text-xs font-semibold uppercase text-orange-600">Quản trị</p>
+              <h2 className="text-lg font-semibold text-stone-900">Quản lý hệ thống</h2>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAdminOpen(false)}
+              className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-800 hover:bg-blue-50"
+            >
+              Đóng
+            </button>
+          </div>
+
           <div className="grid min-h-0 flex-1 md:grid-cols-[220px_1fr]">
             <nav className="flex gap-2 overflow-x-auto border-b border-blue-100 bg-white p-3 md:block md:space-y-1 md:overflow-visible md:border-b-0 md:border-r">
-              {navItems.map((item) => (
+              {adminNavItems.map((item) => (
                 <button
                   key={item.key}
                   type="button"
-                  onClick={() => setActiveTab(item.key)}
+                  onClick={() => setActiveAdminTab(item.key)}
                   className={`shrink-0 rounded-xl px-3 py-2 text-left text-sm font-medium transition md:w-full ${
-                    activeTab === item.key
+                    visibleAdminTab === item.key
                       ? "bg-blue-700 text-white shadow-sm"
                       : "border border-blue-100 bg-white text-stone-700 hover:bg-orange-50 md:border-0"
                   }`}
@@ -765,7 +1207,7 @@ export function SearchWorkspace() {
             </nav>
 
             <div className="min-h-0 overflow-y-auto p-4 md:p-5">
-              {renderSettingsContent()}
+              {renderAdminContent()}
             </div>
           </div>
         </div>
@@ -781,13 +1223,24 @@ export function SearchWorkspace() {
             <h1 className="truncate text-base font-semibold text-stone-900">Web Search Chat</h1>
             <p className="truncate text-xs text-blue-700/70">{currentSessionLabel}</p>
           </div>
-          <button
-            type="button"
-            onClick={() => setSettingsOpen(true)}
-            className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-800 shadow-sm hover:bg-orange-50"
-          >
-            Cài đặt
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-800 shadow-sm hover:bg-orange-50"
+            >
+              Cài đặt
+            </button>
+            {canViewAdminPanel ? (
+              <button
+                type="button"
+                onClick={() => setAdminOpen(true)}
+                className="rounded-xl bg-blue-700 px-3 py-2 text-xs font-medium text-white shadow-sm hover:bg-blue-600"
+              >
+                Quản trị
+              </button>
+            ) : null}
+          </div>
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-3 py-5 md:px-8">
@@ -852,18 +1305,29 @@ export function SearchWorkspace() {
             <h1 className="truncate text-base font-semibold text-stone-900">Article Import</h1>
             <p className="truncate text-xs text-blue-700/70">Cào dữ liệu và dựng bài WordPress</p>
           </div>
-          <button
-            type="button"
-            onClick={() => setSettingsOpen(true)}
-            className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-800 shadow-sm hover:bg-orange-50"
-          >
-            Cài đặt
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-800 shadow-sm hover:bg-orange-50"
+            >
+              Cài đặt
+            </button>
+            {canViewAdminPanel ? (
+              <button
+                type="button"
+                onClick={() => setAdminOpen(true)}
+                className="rounded-xl bg-blue-700 px-3 py-2 text-xs font-medium text-white shadow-sm hover:bg-blue-600"
+              >
+                Quản trị
+              </button>
+            ) : null}
+          </div>
         </header>
 
         <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-5 md:px-8">
           <div className="mx-auto w-full max-w-6xl min-w-0">
-            <ArticleImportPanel />
+            <ArticleImportPanel authToken={authToken || ""} />
           </div>
         </div>
       </div>
@@ -884,6 +1348,7 @@ export function SearchWorkspace() {
         </div>
       </section>
       {renderSettingsModal()}
+      {renderAdminModal()}
     </main>
   );
 }

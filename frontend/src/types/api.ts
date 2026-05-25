@@ -110,6 +110,11 @@ export type CurrentUserData = {
   user: AuthUser;
 };
 
+export type AdminUsersData = {
+  users: AuthUser[];
+  total: number;
+};
+
 export type ArticleBlockType =
   | "heading"
   | "paragraph"
@@ -308,4 +313,22 @@ export type AuditLogItem = {
 export type AuditLogData = {
   events: AuditLogItem[];
   total: number;
+};
+
+export type AdminSystemStatusData = {
+  status: string;
+  environment: string;
+  auth_store_backend: string;
+  auth_service_type: string;
+  session_store_backend: string;
+  session_store_type: string;
+  database_configured: boolean;
+  rbac_enabled: boolean;
+  llm_enabled: boolean;
+  llm_configured: boolean;
+  tavily_key_count: number;
+  article_import_storage_path: string;
+  article_import_run_count: number;
+  article_import_status_counts: Record<string, number>;
+  readiness_checks: Record<string, string>;
 };

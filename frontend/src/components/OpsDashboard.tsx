@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 
 import {
+  fetchAdminSystemStatus,
   fetchAuditLogs,
   fetchLlmConfig,
   fetchLlmHealth,
@@ -12,15 +13,17 @@ import {
   runLlmTest,
   updateTavilyKey,
 } from "@/services/apiClient";
-import { AuditLogItem, LlmRuntimeConfig, TavilyKeyMetricsData } from "@/types/api";
+import { AdminSystemStatusData, AuditLogItem, LlmRuntimeConfig, TavilyKeyMetricsData } from "@/types/api";
 
 type OpsDashboardProps = {
+  authToken: string;
   onKeysChanged: () => Promise<void>;
 };
 
-export function OpsDashboard({ onKeysChanged }: OpsDashboardProps) {
+export function OpsDashboard({ authToken, onKeysChanged }: OpsDashboardProps) {
   const [metrics, setMetrics] = useState<TavilyKeyMetricsData | null>(null);
   const [llmConfig, setLlmConfig] = useState<LlmRuntimeConfig | null>(null);
+  const [systemStatus, setSystemStatus] = useState<AdminSystemStatusData | null>(null);
   const [audit, setAudit] = useState<AuditLogItem[]>([]);
   const [statusMessage, setStatusMessage] = useState<string>("");
   const [llmHealthMessage, setLlmHealthMessage] = useState<string>("");
@@ -49,9 +52,10 @@ export function OpsDashboard({ onKeysChanged }: OpsDashboardProps) {
     setIsLoading(true);
     setStatusMessage("");
     try {
-      const [metricsRes, configRes, auditRes] = await Promise.all([
+      const [metricsRes, configRes, systemStatusRes, auditRes] = await Promise.all([
         fetchTavilyKeyMetrics(),
         fetchLlmConfig(),
+        fetchAdminSystemStatus(authToken),
         fetchAuditLogs(40),
       ]);
       if (metricsRes.success && metricsRes.data) {
@@ -59,6 +63,9 @@ export function OpsDashboard({ onKeysChanged }: OpsDashboardProps) {
       }
       if (configRes.success && configRes.data) {
         setLlmConfig(configRes.data.config);
+      }
+      if (systemStatusRes.success && systemStatusRes.data) {
+        setSystemStatus(systemStatusRes.data);
       }
       if (auditRes.success && auditRes.data) {
         setAudit(auditRes.data.events);
@@ -70,7 +77,7 @@ export function OpsDashboard({ onKeysChanged }: OpsDashboardProps) {
 
   async function handleToggleKey(keyId: string, currentStatus: string) {
     const nextStatus = currentStatus === "disabled" ? "active" : "disabled";
-    const response = await updateTavilyKey(keyId, { status: nextStatus });
+    const response = await updateTavilyKey(authToken, keyId, { status: nextStatus });
     if (!response.success) {
       setStatusMessage(response.error?.message || "Cap nhat key that bai.");
       return;
@@ -80,7 +87,7 @@ export function OpsDashboard({ onKeysChanged }: OpsDashboardProps) {
   }
 
   async function handleResetCooldown(keyId: string) {
-    const response = await resetTavilyKeyCooldown(keyId);
+    const response = await resetTavilyKeyCooldown(authToken, keyId);
     if (!response.success) {
       setStatusMessage(response.error?.message || "Reset cooldown that bai.");
       return;
@@ -107,7 +114,7 @@ export function OpsDashboard({ onKeysChanged }: OpsDashboardProps) {
     if (!llmConfig) {
       return;
     }
-    const response = await patchLlmConfig({
+    const response = await patchLlmConfig(authToken, {
       base_url: llmConfig.base_url,
       model: llmConfig.model,
       temperature: llmConfig.temperature,
@@ -125,7 +132,7 @@ export function OpsDashboard({ onKeysChanged }: OpsDashboardProps) {
   }
 
   async function handleLlmTest() {
-    const response = await runLlmTest(testPrompt.trim());
+    const response = await runLlmTest(authToken, testPrompt.trim());
     if (!response.success || !response.data) {
       setTestOutput(response.error?.message || "LLM test that bai.");
       return;
@@ -150,6 +157,35 @@ export function OpsDashboard({ onKeysChanged }: OpsDashboardProps) {
       </div>
 
       {statusMessage ? <p className="mt-2 text-sm text-stone-700">{statusMessage}</p> : null}
+
+      <div className="mt-4 rounded-xl border border-stone-200 p-3">
+        <h3 className="text-sm font-semibold text-stone-800">System Status</h3>
+        {systemStatus ? (
+          <div className="mt-2 grid gap-2 text-xs text-stone-700 md:grid-cols-2">
+            <p>Status: {systemStatus.status}</p>
+            <p>Environment: {systemStatus.environment}</p>
+            <p>Auth: {systemStatus.auth_store_backend} / {systemStatus.auth_service_type}</p>
+            <p>Sessions: {systemStatus.session_store_backend} / {systemStatus.session_store_type}</p>
+            <p>Database configured: {systemStatus.database_configured ? "yes" : "no"}</p>
+            <p>RBAC: {systemStatus.rbac_enabled ? "enabled" : "disabled"}</p>
+            <p>LLM: {systemStatus.llm_enabled && systemStatus.llm_configured ? "configured" : "not configured"}</p>
+            <p>Tavily keys: {systemStatus.tavily_key_count}</p>
+            <p>Article runs: {systemStatus.article_import_run_count}</p>
+            <p>Article storage: {systemStatus.article_import_storage_path}</p>
+          </div>
+        ) : (
+          <p className="mt-2 text-xs text-stone-500">System status has not been loaded yet.</p>
+        )}
+        {systemStatus ? (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {Object.entries(systemStatus.readiness_checks).map(([name, value]) => (
+              <span key={name} className="rounded-full border border-stone-200 px-2 py-1 text-[11px] text-stone-700">
+                {name}: {value}
+              </span>
+            ))}
+          </div>
+        ) : null}
+      </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-stone-200 p-3">

@@ -432,25 +432,31 @@ Không được gọi là production-ready nếu thiếu một trong các mục 
 - Security review không còn blocker mức high/critical.
 
 
-Checklist còn thiếu trước production:
+Trạng thái Phase 8 hiện tại:
 
-1. Dockerfile backend/frontend hoặc Next.js standalone deploy target.
-2. docker-compose production/staging hoặc manifest deploy theo nền tảng chọn.
-3. Alembic migrations cho auth/admin/session/article state quan trọng.
-4. Secret management: GitHub Secrets, cloud secret manager hoặc `.env` ngoài repo.
-5. Rate limiting public API.
-6. CORS/cookie/CSRF policy production.
-7. Structured JSON logs.
-8. Metrics/health checks/readiness checks.
-9. Backup/restore PostgreSQL.
-10. E2E tests cho auth, Article Import, WordPress dry-run/paste.
-11. Security review trước public deploy.
-12. CD workflow riêng sau khi CI pass, dùng GitHub Environments và approval production.
+- [x] Dockerfile backend/frontend và production compose baseline.
+- [x] Alembic migrations cho auth/admin/session state quan trọng.
+- [x] Postgres-backed Auth/RBAC production store với local JSON fallback.
+- [x] Health/readiness endpoints, structured JSON access logs và admin system status.
+- [x] Admin monitoring cho users/audit/system status/Tavily/LLM runtime config.
+- [x] Benchmark report script xuất JSON/Markdown.
+- [x] Pipeline docs/diagrams và production readiness report.
+- [x] Backend Phase 8 subset pass: `73 passed`.
+- [x] Frontend production build pass.
+
+Còn lại cho public/cloud production:
+
+1. Managed secret store hoặc GitHub Secrets theo môi trường deploy thật.
+2. Backup/restore PostgreSQL.
+3. Redis/shared rate limiter nếu chạy nhiều backend replicas.
+4. Live benchmark với Tavily/SearXNG/LLM/WordPress thật.
+5. E2E smoke test trên staging thật cho auth, Article Import, WordPress dry-run/paste.
+6. CD workflow riêng sau khi CI pass, dùng GitHub Environments và approval production.
 
 Kết luận trạng thái hiện tại:
 
-- Project đã có nền CI, docs, test backend quan trọng và local automation tốt.
-- Project chưa production-ready hoàn toàn cho public users vì còn thiếu auth/RBAC thật, migrations production, secret management, rate limit, observability và CD deploy.
+- Project đã hoàn thành Phase 8 baseline local production-readiness.
+- Public/cloud production cần thêm secret manager, backup/restore, approval workflow và smoke test trên môi trường thật.
 
 ## 6 Quy trình bắt buộc cho mỗi phase (theo plan-skill)
 Mỗi phase đều phải đi theo chu trình cố định sau, không được bỏ qua:

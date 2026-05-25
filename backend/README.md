@@ -74,6 +74,13 @@ cd backend
 ../.venv/Scripts/python.exe scripts/benchmark_ab.py --rounds 5
 ```
 
+Tao artifact benchmark production-readiness dang JSON va Markdown:
+
+```bash
+cd backend
+../.venv/Scripts/python.exe scripts/benchmark_report.py --rounds 3 --output-dir benchmark-artifacts
+```
+
 ## Environment
 
 Neu chua co file env:
@@ -84,9 +91,9 @@ cp .env.example .env
 
 Danh sach bien day du xem tai `../docs/env-reference.md`.
 
-## PostgreSQL Session Store + Alembic
+## PostgreSQL Auth/Session Store + Alembic
 
-Backend ho tro chuyen luu session/search trace sang PostgreSQL.
+Backend ho tro chuyen auth/admin state va session/search trace sang PostgreSQL cho production/staging local.
 
 Bien env lien quan:
 
@@ -96,6 +103,10 @@ Bien env lien quan:
   - `local`: bat buoc local JSON.
   - `postgres`: bat buoc Postgres.
 - `APP_SESSION_STORE_DUAL_WRITE`, mac dinh `false`.
+- `APP_AUTH_STORE_BACKEND`:
+  - `auto`: dung Postgres khi DB kha dung, fallback local JSON khi dev khong co DB.
+  - `local`: bat buoc local JSON.
+  - `postgres`: bat buoc Postgres.
 
 Chay migration schema:
 

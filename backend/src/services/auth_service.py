@@ -94,6 +94,50 @@ class AuthService:
             return None
         return self._public_user(user)
 
+    def list_users(self) -> list[AuthUser]:
+        data = self._read()
+        return [self._public_user(user) for user in data["users"]]
+
+    def update_user_status(self, user_id: str, status: str) -> AuthUser:
+        if status not in {"active", "disabled"}:
+            raise ValueError("invalid_status")
+        data = self._read()
+        user = self._find_user_by_id(data, user_id)
+        if not user:
+            raise ValueError("user_not_found")
+        user["status"] = status
+        user["updated_at"] = datetime.now(timezone.utc).isoformat()
+        self._write(data)
+        return self._public_user(user)
+
+    def add_user_role(self, user_id: str, role: str) -> AuthUser:
+        if role not in {"admin", "user"}:
+            raise ValueError("invalid_role")
+        data = self._read()
+        user = self._find_user_by_id(data, user_id)
+        if not user:
+            raise ValueError("user_not_found")
+        roles = [str(item) for item in user.get("roles") or []]
+        if role not in roles:
+            roles.append(role)
+        user["roles"] = roles
+        user["updated_at"] = datetime.now(timezone.utc).isoformat()
+        self._write(data)
+        return self._public_user(user)
+
+    def remove_user_role(self, user_id: str, role: str) -> AuthUser:
+        if role not in {"admin", "user"}:
+            raise ValueError("invalid_role")
+        data = self._read()
+        user = self._find_user_by_id(data, user_id)
+        if not user:
+            raise ValueError("user_not_found")
+        roles = [str(item) for item in user.get("roles") or [] if str(item) != role]
+        user["roles"] = roles or ["user"]
+        user["updated_at"] = datetime.now(timezone.utc).isoformat()
+        self._write(data)
+        return self._public_user(user)
+
     def logout(self, token: str) -> None:
         data = self._read()
         token_hash = self._hash_token(token)
@@ -135,6 +179,10 @@ class AuthService:
     @staticmethod
     def _find_user(data: dict[str, Any], email: str) -> dict[str, Any] | None:
         return next((item for item in data["users"] if item.get("email") == email), None)
+
+    @staticmethod
+    def _find_user_by_id(data: dict[str, Any], user_id: str) -> dict[str, Any] | None:
+        return next((item for item in data["users"] if item.get("id") == user_id), None)
 
     def _hash_password(self, password: str) -> str:
         salt = secrets.token_hex(16)

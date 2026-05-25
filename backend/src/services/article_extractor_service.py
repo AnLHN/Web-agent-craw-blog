@@ -35,6 +35,10 @@ class ArticleExtractorService:
     def _remove_noise(soup: BeautifulSoup) -> None:
         for tag in soup(["script", "style", "nav", "header", "footer", "aside", "form", "noscript"]):
             tag.decompose()
+        for tag in soup.find_all(["math", "annotation", "semantics"]):
+            tag.decompose()
+        for tag in soup.find_all(class_=lambda value: value and any(token in str(value).lower() for token in ["mathjax", "katex", "mjx", "latex"])):
+            tag.decompose()
 
     @staticmethod
     def _main_container(soup: BeautifulSoup) -> Tag:

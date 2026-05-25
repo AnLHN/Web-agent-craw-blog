@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   checkArticleLlmHealth,
@@ -134,7 +134,7 @@ function unknownErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
-export function ArticleImportPanel() {
+export function ArticleImportPanel({ authToken }: { authToken: string }) {
   const nineRouterDashboardUrl =
     process.env.NEXT_PUBLIC_9ROUTER_DASHBOARD_URL || "http://localhost:20128/dashboard";
   const [url, setUrl] = useState("");
@@ -151,6 +151,7 @@ export function ArticleImportPanel() {
   const [llmHealth, setLlmHealth] = useState<ArticleLlmHealthData | null>(null);
   const [llmHealthError, setLlmHealthError] = useState<string | null>(null);
   const [isCheckingLlm, setIsCheckingLlm] = useState(false);
+  const suppressAutoContinueRef = useRef(false);
 
   const assetSummary = useMemo(() => {
     if (!run) {
@@ -168,6 +169,7 @@ export function ArticleImportPanel() {
   const isImportInProgress = Boolean(run?.metadata.import_in_progress);
   const shouldAutoContinue =
     autoContinueTranslate &&
+    !suppressAutoContinueRef.current &&
     Boolean(run) &&
     Boolean(run?.metadata.translation_pause_reason) &&
     String(run?.metadata.translation_status || "") === "partial" &&
@@ -205,7 +207,7 @@ export function ArticleImportPanel() {
     setIsImporting(true);
     setError(null);
     try {
-      const response = await importArticle({
+      const response = await importArticle(authToken, {
         url: url.trim(),
         mode: "draft",
         target_language: "vi",
@@ -229,12 +231,13 @@ export function ArticleImportPanel() {
     if (!run) {
       return;
     }
+    suppressAutoContinueRef.current = true;
     setAutoContinueTranslate(false);
     setAutoRetrySeconds(0);
     setIsDryRunning(true);
     setError(null);
     try {
-      const response = await dryRunWordPressImport(run.id);
+      const response = await dryRunWordPressImport(authToken, run.id);
       if (!response.success || !response.data) {
         setError(responseErrorMessage(response));
         if (response.data?.run) {
@@ -254,10 +257,11 @@ export function ArticleImportPanel() {
     if (!run) {
       return;
     }
+    suppressAutoContinueRef.current = false;
     setIsTranslating(true);
     setError(null);
     try {
-      const response = await translateArticleImport(run.id);
+      const response = await translateArticleImport(authToken, run.id);
       if (!response.success || !response.data) {
         setError(responseErrorMessage(response));
         if (response.data?.run) {
@@ -294,7 +298,7 @@ export function ArticleImportPanel() {
         setIsTranslating(true);
         setError(null);
         try {
-          const response = await translateArticleImport(run.id);
+          const response = await translateArticleImport(authToken, run.id);
           if (!response.success || !response.data) {
             setError(responseErrorMessage(response));
             if (response.data?.run) {
@@ -318,6 +322,7 @@ export function ArticleImportPanel() {
       setTimeout(() => setAutoRetrySeconds(0), 0);
     };
   }, [
+    authToken,
     run,
     shouldAutoContinue,
   ]);
@@ -340,12 +345,13 @@ export function ArticleImportPanel() {
     if (!run) {
       return;
     }
+    suppressAutoContinueRef.current = true;
     setAutoContinueTranslate(false);
     setAutoRetrySeconds(0);
     setIsPasting(true);
     setError(null);
     try {
-      const response = await pasteWordPressImport(run.id);
+      const response = await pasteWordPressImport(authToken, run.id);
       if (!response.success || !response.data) {
         setError(responseErrorMessage(response));
         if (response.data?.run) {

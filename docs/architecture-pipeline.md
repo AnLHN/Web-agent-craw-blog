@@ -267,19 +267,24 @@ Endpoint hiện tại:
 - `GET /api/v1/auth/me`
 - `POST /api/v1/auth/logout`
 
-Phase hiện tại dùng file-backed auth store cho local/dev API. Migration DB Auth/RBAC/Admin đã có để chuyển sang Postgres-backed production store ở phase sau.
+Runtime auth dùng factory chọn `AuthService` file-backed cho local/dev hoặc `PostgresAuthService` cho production khi `APP_AUTH_STORE_BACKEND=postgres`. Cả hai mode đều hash bearer token, không trả password/session secret qua API, và enforce permission checks cho endpoint nhạy cảm.
 
 ```mermaid
 flowchart TD
     A[Register/Login request] --> B[Validate payload]
-    B --> C[AuthService]
-    C --> D{Register or Login?}
+    B --> B1[Auth rate limiter]
+    B1 --> C[Auth service factory]
+    C --> C1{Backend mode}
+    C1 -- local/auto fallback --> C2[AuthService JSON store]
+    C1 -- postgres --> C3[PostgresAuthService]
+    C2 --> D{Register or Login?}
+    C3 --> D
     D -- Register --> E[Create user]
     E --> F{First user?}
     F -- yes --> G[Assign admin role]
     F -- no --> H[Assign user role]
     D -- Login --> I[Verify password hash]
-    G --> J[Create session token]
+    G --> J[Create hashed bearer session]
     H --> J
     I --> J
     J --> K[Return bearer token and public user]
@@ -289,7 +294,17 @@ flowchart TD
     O --> P{Permission required?}
     P -- allowed --> Q[Call endpoint]
     P -- denied --> R[Forbidden/Auth error]
+    Q --> S[Audit sensitive action]
 ```
+
+Bearer RBAC đang áp dụng cho:
+
+- Tavily key mutation: `keys:tavily_manage`.
+- LLM config/test mutation: `llm:config_manage`.
+- Article Import import/translate/dry-run/paste: `article:*` permissions tương ứng.
+- Admin users/audit/system status: `admin:users_read`, `admin:users_manage`, `admin:roles_manage`, `ops:audit_read`.
+
+Production compose sets `APP_AUTH_STORE_BACKEND=postgres` and `APP_SESSION_STORE_BACKEND=postgres`, so auth/session state is durable in PostgreSQL while local/dev can keep JSON fallback.
 
 ## Deployment pipeline target
 
@@ -303,13 +318,23 @@ flowchart LR
     E --> F
     F -- no --> G[Fix and rerun]
     F -- yes --> H[Merge main]
-    H --> I[Build deploy artifacts]
-    I --> J[Deploy staging]
-    J --> K[Smoke tests and benchmark report]
-    K --> L{Approval}
-    L -- approved --> M[Deploy production]
-    L -- rejected --> G
+    H --> I[Build Docker images]
+    I --> J[Validate compose config]
+    J --> K[Deploy staging]
+    K --> L[Health/readiness smoke tests]
+    L --> M[Generate benchmark report JSON/Markdown]
+    M --> N{Approval}
+    N -- approved --> O[Deploy production]
+    N -- rejected --> G
 ```
+
+Production artifacts hiện có:
+
+- `backend/Dockerfile`, `frontend/Dockerfile`.
+- `docker-compose.production.yml`.
+- `.env.production.example`.
+- `GET /api/v1/ready` cho readiness.
+- `backend/scripts/benchmark_report.py` tạo benchmark JSON/Markdown cho health, readiness, auth, admin monitoring và search mock.
 
 ## SSE streaming
 
@@ -360,4 +385,20 @@ Hệ thống có:
 - audit logs cho thao tác nhạy cảm;
 - LLM health/test endpoint;
 - Tavily key metrics;
-- logs backend/frontend trong `logs/` khi chạy script.
+- `X-Request-Id` trên response;
+- backend access log dạng JSON gồm method, path, status, duration, request id;
+- benchmark artifacts JSON/Markdown từ `backend/scripts/benchmark_report.py`.
+
+```mermaid
+flowchart TD
+    A[HTTP request] --> B[Request logging middleware]
+    B --> C[Assign or preserve X-Request-Id]
+    C --> D[Controller/service pipeline]
+    D --> E[Response envelope]
+    E --> F[Response X-Request-Id]
+    D --> G[AuditLogStore for sensitive actions]
+    B --> H[Structured JSON access log]
+    I[Benchmark script] --> J[TestClient requests]
+    J --> K[benchmark-report.json]
+    J --> L[benchmark-report.md]
+```

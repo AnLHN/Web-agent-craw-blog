@@ -8,6 +8,33 @@ Dự án có ba lớp cấu hình chính:
 
 Không commit các file env thật vào git.
 
+## Production compose
+
+Template production nằm ở `.env.production.example`. Copy sang file private trước khi chạy:
+
+```bash
+cp .env.production.example .env.production
+```
+
+Bắt buộc đổi các secret trước khi deploy:
+
+- `POSTGRES_PASSWORD`
+- `APP_AUTH_TOKEN_SECRET`
+
+Chạy stack production/staging local:
+
+```bash
+docker compose --env-file .env.production -f docker-compose.production.yml up --build
+```
+
+Kiểm tra readiness:
+
+```bash
+curl http://127.0.0.1:8011/api/v1/ready
+```
+
+Backend trả `X-Request-Id` cho mỗi response và ghi access log dạng JSON gồm method, path, status code, duration và request id.
+
 ## Root `.env`
 
 Root `.env` được tạo từ `.env.example`.
@@ -147,7 +174,10 @@ Không commit file này nếu chứa key thật.
 - `APP_LLM_RUNTIME_STORE_PATH`
 - `APP_AUDIT_LOG_STORE_PATH`
 - `APP_AUTH_STORE_PATH`: file-backed auth store cho phase local/dev.
+- `APP_AUTH_STORE_BACKEND`: `auto|local|postgres`, chọn backend lưu auth/admin state.
 - `APP_AUTH_TOKEN_SECRET`: secret dùng hash bearer session token; production phải đổi giá trị này.
+- `APP_AUTH_RATE_LIMIT_WINDOW_SECONDS`: cửa sổ rate limit cho login/register.
+- `APP_AUTH_RATE_LIMIT_MAX_ATTEMPTS`: số lần login/register tối đa trong mỗi cửa sổ.
 
 ### Database/session
 

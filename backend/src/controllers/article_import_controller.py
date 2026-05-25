@@ -26,7 +26,7 @@ from src.models.schemas import ErrorInfo
 from src.services.article_fetcher_service import ArticleFetchError
 from src.utils.feature_flags import feature_enabled
 from src.utils.response import response_meta
-from src.utils.security import current_role
+from src.utils.security import current_role, require_permission
 
 router = APIRouter()
 
@@ -349,6 +349,7 @@ async def _run_import_pipeline(request: Request, run_id: str, source_url: str) -
 async def create_article_import(payload: ArticleImportRequest, request: Request) -> ArticleImportResponse:
     if not feature_enabled(request, "feature_article_import"):
         return _feature_disabled_response()
+    require_permission(request, "article:import")
 
     settings = request.app.state.settings
     article_fetcher = request.app.state.services["article_fetcher_service"]
@@ -594,6 +595,7 @@ async def get_article_import(run_id: str, request: Request) -> ArticleImportResp
 async def translate_article_import(run_id: str, request: Request) -> ArticleImportResponse:
     if not feature_enabled(request, "feature_article_import"):
         return _feature_disabled_response()
+    require_permission(request, "article:translate")
     run = _load_run(settings=request.app.state.settings, run_id=run_id)
     if not run:
         return _not_found_response(run_id)
@@ -680,6 +682,7 @@ async def translate_article_import(run_id: str, request: Request) -> ArticleImpo
 async def dry_run_wordpress_article_import(run_id: str, request: Request) -> ArticleImportResponse:
     if not feature_enabled(request, "feature_article_import"):
         return _feature_disabled_response()
+    require_permission(request, "article:wordpress_dry_run")
     run = _load_run(settings=request.app.state.settings, run_id=run_id)
     if not run:
         return _not_found_response(run_id)
@@ -729,6 +732,7 @@ async def dry_run_wordpress_article_import(run_id: str, request: Request) -> Art
 async def paste_wordpress_article_import(run_id: str, request: Request) -> ArticleImportResponse:
     if not feature_enabled(request, "feature_article_import"):
         return _feature_disabled_response()
+    require_permission(request, "article:wordpress_paste")
     run = _load_run(settings=request.app.state.settings, run_id=run_id)
     if not run:
         return _not_found_response(run_id)

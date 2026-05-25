@@ -11,6 +11,8 @@ from src.models.schemas import (
     KeyCreateRequest,
     KeyUpdateRequest,
     KeyInfo,
+    ReadinessData,
+    ReadinessResponse,
     SearchRequest,
     SearchResponse,
     TavilyKeyMetricsData,
@@ -21,7 +23,7 @@ from src.models.schemas import (
 from src.services.key_store import mask_key
 from src.utils.feature_flags import feature_enabled
 from src.utils.response import response_meta
-from src.utils.security import require_role
+from src.utils.security import require_permission, require_role
 from src.utils.text import finalize_summary_for_response
 
 router = APIRouter()
@@ -156,6 +158,25 @@ async def health(request: Request) -> HealthResponse:
             llm_base_url=settings.llm_base_url,
         ),
         error=None,
+        meta=response_meta(),
+    )
+
+
+@router.get("/ready", response_model=ReadinessResponse)
+async def readiness(request: Request) -> ReadinessResponse:
+    services = request.app.state.services
+    checks = {
+        "key_store": "ok" if "key_store" in services else "missing",
+        "chat_session_store": "ok" if "chat_session_store" in services else "missing",
+        "audit_log_store": "ok" if "audit_log_store" in services else "missing",
+        "auth_service": "ok" if "auth_service" in services else "missing",
+        "article_fetcher_service": "ok" if "article_fetcher_service" in services else "missing",
+    }
+    ready = all(value == "ok" for value in checks.values())
+    return ReadinessResponse(
+        success=ready,
+        data=ReadinessData(status="ready" if ready else "not_ready", checks=checks),
+        error=None if ready else ErrorInfo(code="NOT_READY", message="One or more services are not ready", details=checks),
         meta=response_meta(),
     )
 
@@ -308,7 +329,8 @@ async def add_tavily_key(payload: KeyCreateRequest, request: Request) -> TavilyK
             error=ErrorInfo(code="FEATURE_DISABLED", message="Ops dashboard feature is disabled", details=None),
             meta=response_meta(),
         )
-    actor_role = require_role(request, "operator")
+    actor_user = require_permission(request, "keys:tavily_manage")
+    actor_role = ",".join(actor_user.roles)
     key_store = request.app.state.services["key_store"]
     audit = request.app.state.services["audit_log_store"]
     try:
@@ -338,7 +360,8 @@ async def delete_tavily_key(key_id: str, request: Request) -> TavilyKeysResponse
             error=ErrorInfo(code="FEATURE_DISABLED", message="Ops dashboard feature is disabled", details=None),
             meta=response_meta(),
         )
-    actor_role = require_role(request, "operator")
+    actor_user = require_permission(request, "keys:tavily_manage")
+    actor_role = ",".join(actor_user.roles)
     key_store = request.app.state.services["key_store"]
     audit = request.app.state.services["audit_log_store"]
     deleted = key_store.delete_key(key_id)
@@ -377,7 +400,8 @@ async def update_tavily_key(
             error=ErrorInfo(code="FEATURE_DISABLED", message="Ops dashboard feature is disabled", details=None),
             meta=response_meta(),
         )
-    actor_role = require_role(request, "operator")
+    actor_user = require_permission(request, "keys:tavily_manage")
+    actor_role = ",".join(actor_user.roles)
     key_store = request.app.state.services["key_store"]
     audit = request.app.state.services["audit_log_store"]
     try:
@@ -413,7 +437,8 @@ async def reset_tavily_key_cooldown(key_id: str, request: Request) -> TavilyKeys
             error=ErrorInfo(code="FEATURE_DISABLED", message="Ops dashboard feature is disabled", details=None),
             meta=response_meta(),
         )
-    actor_role = require_role(request, "operator")
+    actor_user = require_permission(request, "keys:tavily_manage")
+    actor_role = ",".join(actor_user.roles)
     key_store = request.app.state.services["key_store"]
     audit = request.app.state.services["audit_log_store"]
     record = key_store.reset_cooldown(key_id=key_id)

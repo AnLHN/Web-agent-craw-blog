@@ -57,7 +57,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1
 - tạo local config files trong `backend/config`;
 - tự cài/start 9Router nếu bật `NINEROUTER_INSTALL=true` và `NINEROUTER_AUTO_START=true`;
 - tự mở Chrome/Brave/Edge CDP cho WordPress nếu `WP_CHROME_AUTO_START=true`;
-- tự start PostgreSQL, pgAdmin, SearXNG nếu bật trong root `.env`;
+- tự start PostgreSQL, pgAdmin, SearXNG nếu bật trong root `.env` và backend store không bị ép `local`;
 - tự start backend/frontend nếu `AUTO_START_APPS=true`.
 
 ## Chạy app

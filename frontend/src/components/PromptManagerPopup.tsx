@@ -19,7 +19,7 @@ function defaultPromptConfig(): LlmRuntimeConfig {
   };
 }
 
-export function PromptManagerPanel() {
+export function PromptManagerPanel({ authToken }: { authToken: string }) {
   const [config, setConfig] = useState<LlmRuntimeConfig>(defaultPromptConfig());
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
@@ -45,7 +45,7 @@ export function PromptManagerPanel() {
     event.preventDefault();
     setSaving(true);
     setMessage("");
-    const res = await patchLlmConfig({
+    const res = await patchLlmConfig(authToken, {
       summary_system_prompt: (config.summary_system_prompt || "").trim(),
       summary_max_tokens: config.summary_max_tokens ?? 512,
     });
@@ -136,7 +136,8 @@ export function PromptManagerPopup() {
     event.preventDefault();
     setSaving(true);
     setMessage("");
-    const res = await patchLlmConfig({
+    const token = window.localStorage.getItem("web_agent_auth_token") || "";
+    const res = await patchLlmConfig(token, {
       summary_system_prompt: (config.summary_system_prompt || "").trim(),
       summary_max_tokens: config.summary_max_tokens ?? 512,
     });

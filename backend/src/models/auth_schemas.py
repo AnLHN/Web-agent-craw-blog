@@ -57,6 +57,15 @@ class CurrentUserData(BaseModel):
     user: AuthUser
 
 
+class AdminUsersData(BaseModel):
+    users: List[AuthUser] = Field(default_factory=list)
+    total: int
+
+
+class AdminUserUpdateRequest(BaseModel):
+    status: str = Field(pattern="^(active|disabled)$")
+
+
 class AuthResponse(BaseModel):
     success: bool
     data: Optional[AuthData] = None
@@ -67,6 +76,13 @@ class AuthResponse(BaseModel):
 class CurrentUserResponse(BaseModel):
     success: bool
     data: Optional[CurrentUserData] = None
+    error: Optional[ErrorInfo] = None
+    meta: ResponseMeta
+
+
+class AdminUsersResponse(BaseModel):
+    success: bool
+    data: Optional[AdminUsersData] = None
     error: Optional[ErrorInfo] = None
     meta: ResponseMeta
 
