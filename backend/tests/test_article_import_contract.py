@@ -435,18 +435,15 @@ def test_article_import_translates_with_9router_openai_when_configured(tmp_path:
         response = client.post("/api/v1/articles/import", json={"url": "https://example.com/articles/agent-tools"})
 
     assert llm_mock.called
-    assert llm_mock.call_count == 3
+    assert llm_mock.call_count == 2
     assert llm_mock.calls[0].request.headers["authorization"] == "Bearer test-key"
     llm_request = json.loads(llm_mock.calls[0].request.content)
     llm_user_payload = json.loads(llm_request["messages"][1]["content"])
     assert llm_request["stream"] is False
-    assert [block["id"] for block in llm_user_payload["blocks"]] == ["b1", "b2", "b4"]
+    assert [block["id"] for block in llm_user_payload["blocks"]] == ["b1", "b2", "b4", "b5"]
     second_llm_request = json.loads(llm_mock.calls[1].request.content)
     second_llm_user_payload = json.loads(second_llm_request["messages"][1]["content"])
-    assert [block["id"] for block in second_llm_user_payload["blocks"]] == ["b5", "b6", "b7"]
-    third_llm_request = json.loads(llm_mock.calls[2].request.content)
-    third_llm_user_payload = json.loads(third_llm_request["messages"][1]["content"])
-    assert [block["id"] for block in third_llm_user_payload["blocks"]] == ["b8", "cap::asset_1"]
+    assert [block["id"] for block in second_llm_user_payload["blocks"]] == ["b6", "b7", "b8", "cap::asset_1"]
     payload = response.json()
     run = payload["data"]["run"]
     assert response.status_code == 202

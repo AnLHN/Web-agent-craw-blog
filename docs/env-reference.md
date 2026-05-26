@@ -217,10 +217,10 @@ Lưu ý:
 - `APP_9ROUTER_BASE_URL`: OpenAI-compatible base URL của 9Router, mặc định `http://127.0.0.1:20128/v1`.
 - `APP_9ROUTER_API_KEY`: key gửi tới 9Router nếu router yêu cầu auth. Không commit key thật.
 - `APP_ARTICLE_OPENAI_MODEL`: model ID trong 9Router, mặc định `cx/gpt-5.5`.
-- `APP_ARTICLE_TRANSLATION_MAX_OUTPUT_TOKENS`: output token budget mỗi request dịch, mặc định `8000`.
-- `APP_ARTICLE_TRANSLATION_MAX_BATCHES_PER_RUN`: số batch tối đa mỗi lần import/translate trước khi pause.
-- `APP_ARTICLE_TRANSLATION_BATCH_SIZE`: số block tối đa mỗi batch, mặc định `3`.
-- `APP_ARTICLE_TRANSLATION_MAX_BATCH_CHARS`: tổng ký tự source tối đa mỗi batch, mặc định `8000`.
+- `APP_ARTICLE_TRANSLATION_MAX_OUTPUT_TOKENS`: output token budget mỗi request dịch, mặc định `10000`.
+- `APP_ARTICLE_TRANSLATION_MAX_BATCHES_PER_RUN`: số batch tối đa mỗi lần import/translate trước khi pause, mặc định `8`.
+- `APP_ARTICLE_TRANSLATION_BATCH_SIZE`: số block tối đa mỗi batch, mặc định `4`.
+- `APP_ARTICLE_TRANSLATION_MAX_BATCH_CHARS`: tổng ký tự source tối đa mỗi batch, mặc định `10000`.
 - `APP_ARTICLE_IMPORT_STORAGE_PATH`: nơi lưu raw/extracted/draft artifacts.
 - `APP_WORDPRESS_CHROME_CDP_URL`: CDP endpoint browser WordPress, mặc định `http://127.0.0.1:9227`.
 

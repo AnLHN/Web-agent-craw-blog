@@ -99,10 +99,10 @@ class Settings(BaseSettings):
             "article_openai_model",
         ),
     )
-    article_translation_max_output_tokens: int = 8000
-    article_translation_max_batches_per_run: int = 6
-    article_translation_batch_size: int = 3
-    article_translation_max_batch_chars: int = 8000
+    article_translation_max_output_tokens: int = 10000
+    article_translation_max_batches_per_run: int = 8
+    article_translation_batch_size: int = 4
+    article_translation_max_batch_chars: int = 10000
     article_fetch_user_agent: str = "WebAgentArticleImporter/0.1 (+https://localhost)"
     article_asset_max_bytes: int = 8 * 1024 * 1024
     article_allow_private_urls: bool = False

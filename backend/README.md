@@ -65,6 +65,19 @@ cd backend
 ..\.venv\Scripts\python.exe -m uvicorn src.main:app --reload --host 127.0.0.1 --port 8011
 ```
 
+## Article Import translation tuning
+
+Default translation batching uses the balanced profile:
+
+```env
+APP_ARTICLE_TRANSLATION_BATCH_SIZE=4
+APP_ARTICLE_TRANSLATION_MAX_BATCH_CHARS=10000
+APP_ARTICLE_TRANSLATION_MAX_BATCHES_PER_RUN=8
+APP_ARTICLE_TRANSLATION_MAX_OUTPUT_TOKENS=10000
+```
+
+This reduces request count versus the earlier conservative defaults while staying below the more failure-prone aggressive range.
+
 ## Phase H Benchmark A/B
 
 Chay benchmark so sanh `classic` va `multi_agent_balanced`:

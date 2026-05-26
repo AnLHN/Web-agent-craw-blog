@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from src.config.settings import Settings
 from src.services.chat_session_store import ChatSessionStore
 from src.services.postgres_chat_session_store import PostgresChatSessionStore
@@ -112,10 +114,13 @@ def build_chat_session_store(settings: Settings):
     if backend == "auto":
         if not can_use_postgres:
             return local_store
-        postgres_store = PostgresChatSessionStore(
-            database_url=db_url,
-            retention_days=settings.chat_session_retention_days,
-        )
+        try:
+            postgres_store = PostgresChatSessionStore(
+                database_url=db_url,
+                retention_days=settings.chat_session_retention_days,
+            )
+        except SQLAlchemyError:
+            return local_store
         if settings.session_store_dual_write:
             return DualWriteChatSessionStore(
                 primary_store=postgres_store,

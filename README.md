@@ -13,7 +13,7 @@ Repository: https://github.com/AnLHN/Web-agent-craw-blog.git
 - Tavily-first search pipeline, SearXNG fallback, query expansion, evidence merge và quality gate.
 - LLM final summarizer dùng OpenAI-compatible API, có runtime config cho base URL/model/temperature/max tokens/prompt.
 - Article Import nhận URL bài viết, crawl HTML, tải ảnh, extract heading/paragraph/list/quote/table/code/embed/image.
-- Dịch bài theo batch nhỏ qua 9Router GPT 5.5 (`cx/gpt-5.5`), có retry lỗi 429/500/502/503/504 và resume phần chưa dịch.
+- Dịch bài theo batch cân bằng tối ưu qua 9Router GPT 5.5 (`cx/gpt-5.5`), có retry lỗi 429/500/502/503/504 và resume phần chưa dịch.
 - Giữ link qua dịch bằng placeholder `[LINK_n:label]`, render lại anchor inline trong paragraph/quote/bullet sau dịch.
 - WordPress automation qua Chrome/Brave/Edge CDP port riêng `9227`: dry-run kiểm tra tab WordPress và paste draft khi sẵn sàng.
 - Settings UI cho tài khoản, search, Article Import, 9Router/WordPress status và Tavily key theo quyền.
