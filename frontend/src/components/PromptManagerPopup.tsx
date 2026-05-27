@@ -62,17 +62,17 @@ export function PromptManagerPanel({ authToken }: { authToken: string }) {
   }
 
   return (
-    <section className="rounded-lg border border-stone-300 bg-white p-5 shadow-sm">
+    <section className="rounded-lg border border-[#dfe6dc] bg-white p-5 shadow-sm shadow-[#12312f]/5">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-stone-900">Prompt Manager</h2>
-          <p className="mt-1 text-sm text-stone-600">Final summarizer prompt va target output length.</p>
+          <h2 className="text-lg font-extrabold text-[#18201c]">Prompt Manager</h2>
+          <p className="mt-1 text-sm text-[#66736b]">Final summarizer prompt va target output length.</p>
         </div>
-        {loading ? <span className="text-xs text-stone-500">Loading...</span> : null}
+        {loading ? <span className="text-xs font-medium text-[#66736b]">Loading...</span> : null}
       </div>
 
       <form onSubmit={handleSave} className="mt-4 grid gap-3">
-        <label className="text-xs font-medium text-stone-700">System Prompt</label>
+        <label className="text-xs font-bold uppercase tracking-[0.12em] text-[#0f766e]">System Prompt</label>
         <textarea
           value={config.summary_system_prompt || ""}
           onChange={(event) =>
@@ -81,9 +81,9 @@ export function PromptManagerPanel({ authToken }: { authToken: string }) {
               summary_system_prompt: event.target.value,
             }))
           }
-          className="min-h-64 w-full rounded-md border border-stone-300 px-3 py-2 text-sm leading-6 focus:border-amber-500 focus:outline-none"
+          className="min-h-64 w-full rounded-lg border border-[#dfe6dc] bg-[#fbfcf7] px-3 py-2 text-sm leading-6 focus:border-[#0f766e] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10"
         />
-        <label className="text-xs font-medium text-stone-700">Target Output Length (tokens)</label>
+        <label className="text-xs font-bold uppercase tracking-[0.12em] text-[#0f766e]">Target Output Length (tokens)</label>
         <input
           type="number"
           min={32}
@@ -95,19 +95,19 @@ export function PromptManagerPanel({ authToken }: { authToken: string }) {
               summary_max_tokens: Number(event.target.value) || 512,
             }))
           }
-          className="w-44 rounded-md border border-stone-300 px-2 py-1 text-sm focus:border-amber-500 focus:outline-none"
+          className="w-44 rounded-md border border-[#dfe6dc] bg-[#fbfcf7] px-2 py-1.5 text-sm focus:border-[#0f766e] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10"
         />
-        <p className="-mt-2 text-xs text-stone-500">
+        <p className="-mt-2 text-xs text-[#66736b]">
           Output length dung theo token budget cua OpenAI-compatible API.
         </p>
         <button
           type="submit"
           disabled={saving}
-          className="w-fit rounded-md bg-stone-900 px-4 py-2 text-xs font-medium text-white hover:bg-stone-700 disabled:opacity-60"
+          className="w-fit rounded-lg bg-[#0f766e] px-4 py-2 text-xs font-bold text-white shadow-lg shadow-[#0f766e]/20 hover:bg-[#115e59] disabled:opacity-60"
         >
           {saving ? "Saving..." : "Save Prompt"}
         </button>
-        {message ? <p className="text-xs text-stone-700">{message}</p> : null}
+        {message ? <p className="text-xs text-[#4d5a53]">{message}</p> : null}
       </form>
     </section>
   );
@@ -158,27 +158,27 @@ export function PromptManagerPopup() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="fixed left-0 top-1/2 z-40 -translate-y-1/2 rounded-r-xl border border-l-0 border-stone-300 bg-amber-400 px-3 py-2 text-xs font-semibold text-stone-900 shadow-sm hover:bg-amber-300"
+        className="fixed left-0 top-1/2 z-40 -translate-y-1/2 rounded-r-lg border border-l-0 border-[#dfe6dc] bg-[#f2b84b] px-3 py-2 text-xs font-bold text-[#12312f] shadow-sm hover:bg-[#ffd166]"
       >
         Prompt
       </button>
 
       {open ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-2xl rounded-2xl border border-stone-300 bg-white p-5 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#12312f]/45 p-4 backdrop-blur-sm">
+          <div className="surface-in w-full max-w-2xl rounded-lg border border-[#dfe6dc] bg-white p-5 shadow-2xl shadow-black/20">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold text-stone-900">Prompt Manager</h3>
+              <h3 className="text-base font-extrabold text-[#18201c]">Prompt Manager</h3>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="rounded-md border border-stone-300 px-2 py-1 text-xs text-stone-700 hover:bg-stone-100"
+                className="rounded-md border border-[#dfe6dc] px-2 py-1 text-xs font-bold text-[#12312f] hover:bg-[#e6f3ef]"
               >
                 Close
               </button>
             </div>
 
             <form onSubmit={handleSave} className="mt-3 grid gap-3">
-              <label className="text-xs font-medium text-stone-700">
+              <label className="text-xs font-bold uppercase tracking-[0.12em] text-[#0f766e]">
                 System Prompt
               </label>
               <textarea
@@ -189,9 +189,9 @@ export function PromptManagerPopup() {
                     summary_system_prompt: event.target.value,
                   }))
                 }
-                className="h-48 w-full rounded-md border border-stone-300 px-3 py-2 text-xs"
+                className="h-48 w-full rounded-lg border border-[#dfe6dc] bg-[#fbfcf7] px-3 py-2 text-xs focus:border-[#0f766e] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10"
               />
-              <label className="text-xs font-medium text-stone-700">
+              <label className="text-xs font-bold uppercase tracking-[0.12em] text-[#0f766e]">
                 Target Output Length (tokens)
               </label>
               <input
@@ -205,19 +205,19 @@ export function PromptManagerPopup() {
                     summary_max_tokens: Number(event.target.value) || 512,
                   }))
                 }
-                className="w-40 rounded-md border border-stone-300 px-2 py-1 text-sm"
+                className="w-40 rounded-md border border-[#dfe6dc] bg-[#fbfcf7] px-2 py-1.5 text-sm focus:border-[#0f766e] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10"
               />
-              <p className="-mt-2 text-xs text-stone-500">
+              <p className="-mt-2 text-xs text-[#66736b]">
                 Output length dung theo token budget cua OpenAI-compatible API.
               </p>
               <button
                 type="submit"
                 disabled={saving}
-                className="w-fit rounded-md bg-stone-900 px-3 py-1 text-xs font-medium text-white hover:bg-stone-700 disabled:opacity-60"
+                className="w-fit rounded-md bg-[#0f766e] px-3 py-1.5 text-xs font-bold text-white shadow-sm shadow-[#0f766e]/20 hover:bg-[#115e59] disabled:opacity-60"
               >
                 {saving ? "Saving..." : "Save Prompt"}
               </button>
-              {message ? <p className="text-xs text-stone-700">{message}</p> : null}
+              {message ? <p className="text-xs text-[#4d5a53]">{message}</p> : null}
             </form>
           </div>
         </div>

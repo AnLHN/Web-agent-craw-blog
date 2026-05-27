@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import {
   checkArticleLlmHealth,
@@ -151,7 +151,7 @@ export function ArticleImportPanel({ authToken }: { authToken: string }) {
   const [llmHealth, setLlmHealth] = useState<ArticleLlmHealthData | null>(null);
   const [llmHealthError, setLlmHealthError] = useState<string | null>(null);
   const [isCheckingLlm, setIsCheckingLlm] = useState(false);
-  const suppressAutoContinueRef = useRef(false);
+  const [isAutoContinueSuppressed, setIsAutoContinueSuppressed] = useState(false);
 
   const assetSummary = useMemo(() => {
     if (!run) {
@@ -169,7 +169,7 @@ export function ArticleImportPanel({ authToken }: { authToken: string }) {
   const isImportInProgress = Boolean(run?.metadata.import_in_progress);
   const shouldAutoContinue =
     autoContinueTranslate &&
-    !suppressAutoContinueRef.current &&
+    !isAutoContinueSuppressed &&
     Boolean(run) &&
     Boolean(run?.metadata.translation_pause_reason) &&
     String(run?.metadata.translation_status || "") === "partial" &&
@@ -231,7 +231,7 @@ export function ArticleImportPanel({ authToken }: { authToken: string }) {
     if (!run) {
       return;
     }
-    suppressAutoContinueRef.current = true;
+    setIsAutoContinueSuppressed(true);
     setAutoContinueTranslate(false);
     setAutoRetrySeconds(0);
     setIsDryRunning(true);
@@ -257,7 +257,7 @@ export function ArticleImportPanel({ authToken }: { authToken: string }) {
     if (!run) {
       return;
     }
-    suppressAutoContinueRef.current = false;
+    setIsAutoContinueSuppressed(false);
     setIsTranslating(true);
     setError(null);
     try {
@@ -345,7 +345,7 @@ export function ArticleImportPanel({ authToken }: { authToken: string }) {
     if (!run) {
       return;
     }
-    suppressAutoContinueRef.current = true;
+    setIsAutoContinueSuppressed(true);
     setAutoContinueTranslate(false);
     setAutoRetrySeconds(0);
     setIsPasting(true);
@@ -390,63 +390,63 @@ export function ArticleImportPanel({ authToken }: { authToken: string }) {
   return (
     <section className="w-full min-w-0 space-y-4 overflow-hidden">
       <div className="min-w-0">
-        <p className="text-xs font-semibold uppercase text-orange-600">Article Import</p>
-        <h3 className="text-lg font-semibold text-stone-900">URL to WordPress draft</h3>
+        <p className="text-xs font-extrabold uppercase tracking-[0.16em] text-[#d97706]">Article Import</p>
+        <h3 className="mt-1 text-2xl font-extrabold text-[#18201c]">URL to WordPress draft</h3>
       </div>
 
       <div className="grid w-full min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <form onSubmit={handleImport} className="grid min-w-0 max-w-3xl gap-3 rounded-xl border border-blue-100 bg-white p-4">
+        <form onSubmit={handleImport} className="grid min-w-0 max-w-3xl gap-4 rounded-lg border border-[#dfe6dc] bg-white p-5 shadow-sm shadow-[#12312f]/5">
           <label className="grid min-w-0 gap-1">
-            <span className="text-xs font-semibold text-blue-800">Source URL</span>
+            <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#0f766e]">Source URL</span>
             <input
               type="url"
               value={url}
               onChange={(event) => setUrl(event.target.value)}
               placeholder="https://example.com/article"
-              className="min-w-0 rounded-lg border border-blue-100 px-3 py-2 text-sm outline-none focus:border-orange-400"
+              className="min-w-0 rounded-lg border border-[#dfe6dc] bg-[#fbfcf7] px-3 py-2.5 text-sm outline-none focus:border-[#0f766e] focus:bg-white focus:ring-4 focus:ring-[#0f766e]/10"
             />
           </label>
           <div className="grid min-w-0 gap-3 md:grid-cols-2">
             <label className="grid min-w-0 gap-1">
-              <span className="text-xs font-semibold text-blue-800">Glossary</span>
+              <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#0f766e]">Glossary</span>
               <input
                 type="text"
                 value={glossaryKey}
                 onChange={(event) => setGlossaryKey(event.target.value)}
-                className="min-w-0 rounded-lg border border-blue-100 px-3 py-2 text-sm outline-none focus:border-orange-400"
+                className="min-w-0 rounded-lg border border-[#dfe6dc] bg-[#fbfcf7] px-3 py-2.5 text-sm outline-none focus:border-[#0f766e] focus:bg-white focus:ring-4 focus:ring-[#0f766e]/10"
               />
             </label>
             <label className="grid min-w-0 gap-1">
-              <span className="text-xs font-semibold text-blue-800">WordPress Target URL</span>
+              <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#0f766e]">WordPress Target URL</span>
               <input
                 type="url"
                 value={wordpressTargetUrl}
                 onChange={(event) => setWordpressTargetUrl(event.target.value)}
                 placeholder="https://site.com/wp-admin/post-new.php"
-                className="min-w-0 rounded-lg border border-blue-100 px-3 py-2 text-sm outline-none focus:border-orange-400"
+                className="min-w-0 rounded-lg border border-[#dfe6dc] bg-[#fbfcf7] px-3 py-2.5 text-sm outline-none focus:border-[#0f766e] focus:bg-white focus:ring-4 focus:ring-[#0f766e]/10"
               />
             </label>
           </div>
           <button
             type="submit"
             disabled={isImporting}
-            className="w-fit rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-400 disabled:opacity-60"
+            className="w-fit rounded-lg bg-[#d97706] px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-[#d97706]/20 hover:bg-[#b45309] disabled:opacity-60"
           >
             {isImporting ? "Starting..." : "Fetch & Build Draft"}
           </button>
         </form>
 
-        <div className="grid min-w-0 content-start gap-3 rounded-xl border border-blue-100 bg-white p-4">
+        <div className="grid min-w-0 content-start gap-3 rounded-lg border border-[#dfe6dc] bg-white p-5 shadow-sm shadow-[#12312f]/5">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase text-blue-600">9router OpenAI</p>
-            <h4 className="mt-1 text-sm font-semibold text-stone-900">API health</h4>
+            <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-[#0f766e]">9router OpenAI</p>
+            <h4 className="mt-1 text-sm font-bold text-[#18201c]">API health</h4>
           </div>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={handleCheckLlmHealth}
               disabled={isCheckingLlm}
-              className="rounded-lg border border-blue-200 px-3 py-2 text-xs font-semibold text-blue-800 hover:bg-blue-50 disabled:opacity-60"
+              className="rounded-lg border border-[#dfe6dc] px-3 py-2 text-xs font-bold text-[#12312f] hover:border-[#0f766e] hover:bg-[#e6f3ef] disabled:opacity-60"
             >
               {isCheckingLlm ? "Checking..." : "Check 9router"}
             </button>
@@ -454,13 +454,13 @@ export function ArticleImportPanel({ authToken }: { authToken: string }) {
               href={nineRouterDashboardUrl}
               target="_blank"
               rel="noreferrer"
-              className="rounded-lg bg-blue-700 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-600"
+              className="rounded-lg bg-[#0f766e] px-3 py-2 text-xs font-bold text-white shadow-sm shadow-[#0f766e]/20 hover:bg-[#115e59]"
             >
               Open dashboard
             </a>
           </div>
           {llmHealth ? (
-            <div className="min-w-0 space-y-1 rounded-lg bg-blue-50/60 p-3 text-xs text-stone-600">
+            <div className="min-w-0 space-y-1 rounded-lg bg-[#f7f8f4] p-3 text-xs text-[#66736b]">
               <p className={llmHealth.ok ? "font-semibold text-emerald-700" : "font-semibold text-orange-700"}>
                 {llmHealth.ok ? "Ready" : "Not ready"} · {llmHealth.status}
               </p>
@@ -479,7 +479,7 @@ export function ArticleImportPanel({ authToken }: { authToken: string }) {
       </div>
 
       {error ? (
-        <div className="max-w-3xl break-words rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm text-orange-800">
+        <div className="max-w-3xl break-words rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-medium text-orange-800">
           {error}
         </div>
       ) : null}
@@ -487,16 +487,16 @@ export function ArticleImportPanel({ authToken }: { authToken: string }) {
       {run ? (
         <div className="grid min-w-0 gap-4 overflow-hidden">
           {progress ? (
-            <div className="min-w-0 rounded-xl border border-blue-100 bg-white p-4">
+            <div className="min-w-0 rounded-lg border border-[#dfe6dc] bg-white p-4 shadow-sm shadow-[#12312f]/5">
               <div className="mb-2 flex items-center justify-between gap-2 text-xs text-stone-600">
                 <p className="font-semibold text-blue-700">
                   Import progress: {progress.pct}%
                 </p>
                 <p className="uppercase tracking-wide">{progress.stage}</p>
               </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-blue-100">
+              <div className="h-2 w-full overflow-hidden rounded-full bg-[#e6eee7]">
                 <div
-                  className="h-2 rounded-full bg-blue-600 transition-all duration-500"
+                  className="h-2 rounded-full bg-[#0f766e] transition-all duration-500"
                   style={{ width: `${progress.pct}%` }}
                 />
               </div>
@@ -507,43 +507,43 @@ export function ArticleImportPanel({ authToken }: { authToken: string }) {
             </div>
           ) : null}
 
-          <div className="grid min-w-0 gap-3 rounded-xl border border-blue-100 bg-white p-4 md:grid-cols-4">
+          <div className="grid min-w-0 gap-3 rounded-lg border border-[#dfe6dc] bg-white p-4 shadow-sm shadow-[#12312f]/5 md:grid-cols-4">
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase text-blue-500">Status</p>
+              <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#0f766e]">Status</p>
               <p className="text-sm font-semibold text-stone-900">{statusLabel(run.status)}</p>
             </div>
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase text-blue-500">Blocks</p>
+              <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#0f766e]">Blocks</p>
               <p className="text-sm font-semibold text-stone-900">{run.blocks.length}</p>
             </div>
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase text-blue-500">Assets</p>
+              <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#0f766e]">Assets</p>
               <p className="break-words text-sm font-semibold text-stone-900">
                 {assetSummary.downloaded} ok / {assetSummary.skipped} skipped / {assetSummary.failed} failed
               </p>
             </div>
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase text-blue-500">Run ID</p>
+              <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#0f766e]">Run ID</p>
               <p className="break-all text-xs text-stone-600">{run.id}</p>
             </div>
           </div>
 
-          <div className="min-w-0 overflow-hidden rounded-xl border border-blue-100 bg-white p-4">
+          <div className="min-w-0 overflow-hidden rounded-lg border border-[#dfe6dc] bg-white p-5 shadow-sm shadow-[#12312f]/5">
             <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
               <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase text-blue-600">Draft</p>
-                <h4 className="break-words text-base font-semibold text-stone-900">{run.draft?.title || run.source.title || "Untitled"}</h4>
+                <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-[#0f766e]">Draft</p>
+                <h4 className="break-words text-lg font-extrabold text-[#18201c]">{run.draft?.title || run.source.title || "Untitled"}</h4>
               </div>
               <div className="flex shrink-0 gap-2">
                 <button
                   type="button"
                   onClick={handleTranslate}
                   disabled={isTranslating}
-                  className="rounded-lg border border-blue-200 px-3 py-2 text-xs font-semibold text-blue-800 hover:bg-blue-50 disabled:opacity-60"
+                  className="rounded-lg border border-[#dfe6dc] px-3 py-2 text-xs font-bold text-[#12312f] hover:border-[#0f766e] hover:bg-[#e6f3ef] disabled:opacity-60"
                 >
                   {isTranslating ? "Translating..." : "Translate"}
                 </button>
-                <label className="flex items-center gap-1 rounded-lg border border-blue-200 px-2 py-1 text-[11px] font-semibold text-blue-800">
+                <label className="flex items-center gap-1 rounded-lg border border-[#dfe6dc] px-2 py-1 text-[11px] font-bold text-[#12312f]">
                   <input
                     type="checkbox"
                     checked={autoContinueTranslate}
@@ -555,7 +555,7 @@ export function ArticleImportPanel({ authToken }: { authToken: string }) {
                   type="button"
                   onClick={handleDryRun}
                   disabled={isDryRunning}
-                  className="rounded-lg border border-blue-200 px-3 py-2 text-xs font-semibold text-blue-800 hover:bg-blue-50 disabled:opacity-60"
+                  className="rounded-lg border border-[#dfe6dc] px-3 py-2 text-xs font-bold text-[#12312f] hover:border-[#0f766e] hover:bg-[#e6f3ef] disabled:opacity-60"
                 >
                   {isDryRunning ? "Checking..." : "Dry Run"}
                 </button>
@@ -563,14 +563,14 @@ export function ArticleImportPanel({ authToken }: { authToken: string }) {
                   type="button"
                   onClick={handlePaste}
                   disabled={isPasting || !run.draft?.content}
-                  className="rounded-lg bg-blue-700 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-600 disabled:opacity-60"
+                  className="rounded-lg bg-[#0f766e] px-3 py-2 text-xs font-bold text-white shadow-sm shadow-[#0f766e]/20 hover:bg-[#115e59] disabled:opacity-60"
                 >
                   {isPasting ? "Pasting..." : "Paste Draft"}
                 </button>
               </div>
             </div>
-            {run.draft?.excerpt ? <p className="mt-2 break-words text-sm text-stone-600">{run.draft.excerpt}</p> : null}
-            <div className="mt-3 grid min-w-0 gap-2 text-xs text-stone-500 md:grid-cols-2">
+            {run.draft?.excerpt ? <p className="mt-2 break-words text-sm leading-6 text-[#66736b]">{run.draft.excerpt}</p> : null}
+            <div className="mt-3 grid min-w-0 gap-2 text-xs text-[#66736b] md:grid-cols-2">
               <p className="break-words">Slug: {run.draft?.slug || "-"}</p>
               <p className="break-words">Source: {run.source.domain}</p>
               <p className="break-words">Translation: {metadataText(run.metadata.translation_status)}</p>
@@ -581,7 +581,7 @@ export function ArticleImportPanel({ authToken }: { authToken: string }) {
                 </p>
               ) : null}
               {shouldAutoContinue && autoRetrySeconds > 0 ? (
-                <p className="break-words text-blue-700 md:col-span-2">
+                <p className="break-words font-bold text-[#0f766e] md:col-span-2">
                   Auto continue in {autoRetrySeconds}s...
                 </p>
               ) : null}
@@ -593,42 +593,42 @@ export function ArticleImportPanel({ authToken }: { authToken: string }) {
               ) : null}
             </div>
             {run.draft?.content ? (
-              <pre className="mt-4 max-h-72 max-w-full overflow-auto whitespace-pre-wrap break-words rounded-xl bg-stone-950 p-3 text-xs text-stone-100">
+              <pre className="mt-4 max-h-72 max-w-full overflow-auto whitespace-pre-wrap break-words rounded-lg bg-[#111917] p-4 font-mono text-xs leading-5 text-[#e8efe9]">
                 {run.draft.content}
               </pre>
             ) : null}
           </div>
 
           <div className="grid min-w-0 gap-4 lg:grid-cols-2">
-            <div className="min-w-0 overflow-hidden rounded-xl border border-blue-100 bg-white p-4">
-              <p className="text-xs font-semibold uppercase text-blue-600">Blocks</p>
+            <div className="min-w-0 overflow-hidden rounded-lg border border-[#dfe6dc] bg-white p-4 shadow-sm shadow-[#12312f]/5">
+              <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-[#0f766e]">Blocks</p>
               <div className="mt-3 max-h-96 space-y-2 overflow-auto">
                 {run.blocks.map((block) => (
-                  <div key={block.id} className="min-w-0 rounded-lg border border-blue-50 bg-blue-50/40 p-3">
-                    <p className="text-[11px] font-semibold uppercase text-blue-500">
+                  <div key={block.id} className="min-w-0 rounded-lg border border-[#dfe6dc] bg-[#fbfcf7] p-3">
+                    <p className="text-[11px] font-extrabold uppercase tracking-[0.12em] text-[#0f766e]">
                       {block.order_index + 1}. {block.block_type}
                     </p>
-                    <p className="mt-1 whitespace-pre-wrap break-words text-sm text-stone-700">{blockText(block) || "-"}</p>
+                    <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-[#4d5a53]">{blockText(block) || "-"}</p>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="min-w-0 overflow-hidden rounded-xl border border-blue-100 bg-white p-4">
-              <p className="text-xs font-semibold uppercase text-blue-600">Assets</p>
+            <div className="min-w-0 overflow-hidden rounded-lg border border-[#dfe6dc] bg-white p-4 shadow-sm shadow-[#12312f]/5">
+              <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-[#0f766e]">Assets</p>
               <div className="mt-3 max-h-96 space-y-2 overflow-auto">
-                {run.assets.length === 0 ? <p className="text-sm text-stone-500">No image assets.</p> : null}
+                {run.assets.length === 0 ? <p className="text-sm text-[#66736b]">No image assets.</p> : null}
                 {run.assets.map((asset) => (
-                  <div key={asset.id} className="min-w-0 rounded-lg border border-blue-50 bg-blue-50/40 p-3">
+                  <div key={asset.id} className="min-w-0 rounded-lg border border-[#dfe6dc] bg-[#fbfcf7] p-3">
                     <div className="flex min-w-0 items-center justify-between gap-2">
-                      <p className="min-w-0 break-words text-sm font-semibold text-stone-800">{asset.id}</p>
-                      <span className="rounded-full bg-white px-2 py-1 text-[11px] font-semibold text-blue-700">
+                      <p className="min-w-0 break-words text-sm font-bold text-[#18201c]">{asset.id}</p>
+                      <span className="rounded-full bg-white px-2 py-1 text-[11px] font-bold text-[#0f766e]">
                         {asset.download_status}
                       </span>
                     </div>
-                    <p className="mt-1 break-all text-xs text-stone-500">{asset.source_url}</p>
-                    {asset.local_path ? <p className="mt-1 break-all text-xs text-stone-500">{asset.local_path}</p> : null}
-                    {asset.caption ? <p className="mt-2 break-words text-sm text-stone-600">{asset.caption}</p> : null}
+                    <p className="mt-1 break-all font-mono text-xs text-[#66736b]">{asset.source_url}</p>
+                    {asset.local_path ? <p className="mt-1 break-all font-mono text-xs text-[#66736b]">{asset.local_path}</p> : null}
+                    {asset.caption ? <p className="mt-2 break-words text-sm leading-6 text-[#4d5a53]">{asset.caption}</p> : null}
                   </div>
                 ))}
               </div>

@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import {
@@ -30,7 +31,7 @@ import { OpsDashboard } from "./OpsDashboard";
 import { PromptManagerPanel } from "./PromptManagerPopup";
 import { SearchResultPanel } from "./SearchResultPanel";
 
-type WorkspaceMode = "web-search" | "article-import";
+export type WorkspaceMode = "web-search" | "article-import";
 type AdminTabKey = "users" | "audit" | "tavily-keys" | "ops" | "prompts" | "auth";
 type AuthMode = "login" | "register";
 
@@ -93,7 +94,11 @@ function restoreLatestSearchResult(session: ChatSession): SearchData | null {
   return isSearchData(searchResult) ? searchResult : null;
 }
 
-export function SearchWorkspace() {
+type SearchWorkspaceProps = {
+  workspaceMode?: WorkspaceMode;
+};
+
+export function SearchWorkspace({ workspaceMode = "web-search" }: SearchWorkspaceProps) {
   const featureSessionHistory =
     (process.env.NEXT_PUBLIC_FEATURE_SESSION_HISTORY || "true").toLowerCase() !== "false";
   const featureOpsDashboard =
@@ -115,7 +120,6 @@ export function SearchWorkspace() {
   const [authUsername, setAuthUsername] = useState("");
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
-  const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>("web-search");
   const [activeAdminTab, setActiveAdminTab] = useState<AdminTabKey>("users");
   const [query, setQuery] = useState("");
   const [topK, setTopK] = useState(5);
@@ -604,13 +608,13 @@ export function SearchWorkspace() {
 
   function renderAuthGate() {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f5f9ff] px-4 py-8">
-        <div className="w-full max-w-md rounded-3xl border border-blue-100 bg-white p-6 shadow-xl shadow-blue-950/10">
-          <p className="text-xs font-semibold uppercase text-orange-600">Web Agent Craw Blog</p>
-          <h1 className="mt-2 text-2xl font-bold text-stone-950">
+      <main className="flex min-h-screen items-center justify-center bg-[#f7f8f4] px-4 py-8">
+        <div className="surface-in w-full max-w-md rounded-lg border border-[#dfe6dc] bg-white p-7 shadow-[0_24px_80px_rgba(18,49,47,0.14)]">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#0f766e]">Web Agent Craw Blog</p>
+          <h1 className="mt-3 text-3xl font-extrabold text-[#18201c]">
             {authMode === "login" ? "Đăng nhập" : "Đăng ký tài khoản"}
           </h1>
-          <p className="mt-2 text-sm text-stone-600">
+          <p className="mt-3 text-sm leading-6 text-[#66736b]">
             {authMode === "login"
               ? "Đăng nhập để dùng search, article import và trang quản trị."
               : "Tài khoản đầu tiên sẽ tự nhận quyền admin."}
@@ -623,7 +627,7 @@ export function SearchWorkspace() {
                 type="email"
                 value={authEmail}
                 onChange={(event) => setAuthEmail(event.target.value)}
-                className="rounded-xl border border-blue-100 px-3 py-2 text-sm focus:border-orange-400 focus:outline-none"
+                className="rounded-lg border border-[#dfe6dc] bg-[#fbfcf7] px-3 py-2 text-sm shadow-inner shadow-black/[0.02] focus:border-[#0f766e] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10"
                 required
               />
             </label>
@@ -635,7 +639,7 @@ export function SearchWorkspace() {
                     type="text"
                     value={authUsername}
                     onChange={(event) => setAuthUsername(event.target.value)}
-                    className="rounded-xl border border-blue-100 px-3 py-2 text-sm focus:border-orange-400 focus:outline-none"
+                    className="rounded-lg border border-[#dfe6dc] bg-[#fbfcf7] px-3 py-2 text-sm shadow-inner shadow-black/[0.02] focus:border-[#0f766e] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10"
                   />
                 </label>
               </>
@@ -646,16 +650,16 @@ export function SearchWorkspace() {
                 type="password"
                 value={authPassword}
                 onChange={(event) => setAuthPassword(event.target.value)}
-                className="rounded-xl border border-blue-100 px-3 py-2 text-sm focus:border-orange-400 focus:outline-none"
+                className="rounded-lg border border-[#dfe6dc] bg-[#fbfcf7] px-3 py-2 text-sm shadow-inner shadow-black/[0.02] focus:border-[#0f766e] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10"
                 minLength={authMode === "register" ? 8 : 1}
                 required
               />
             </label>
-            {authError ? <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{authError}</p> : null}
+            {authError ? <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{authError}</p> : null}
             <button
               type="submit"
               disabled={isAuthLoading}
-              className="w-full rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-600 disabled:opacity-60"
+              className="w-full rounded-lg bg-[#0f766e] px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-[#0f766e]/20 hover:bg-[#115e59] disabled:opacity-60"
             >
               {isAuthLoading ? "Đang xử lý..." : authMode === "login" ? "Đăng nhập" : "Đăng ký"}
             </button>
@@ -667,7 +671,7 @@ export function SearchWorkspace() {
               setAuthMode(authMode === "login" ? "register" : "login");
               setAuthError(null);
             }}
-            className="mt-4 text-sm font-medium text-blue-700 hover:text-blue-900"
+            className="mt-4 text-sm font-bold text-[#0f766e] hover:text-[#115e59]"
           >
             {authMode === "login" ? "Chưa có tài khoản? Đăng ký" : "Đã có tài khoản? Đăng nhập"}
           </button>
@@ -682,32 +686,30 @@ export function SearchWorkspace() {
     }
 
     return (
-      <aside className="flex h-screen min-h-0 flex-col border-r border-blue-950/30 bg-[#102a56] text-blue-50">
+      <aside className="flex h-screen min-h-0 flex-col border-r border-white/10 bg-[#12312f] text-[#f3f7f1] shadow-2xl shadow-black/20">
         <div className="space-y-3 border-b border-white/10 p-3">
-          <div className="grid grid-cols-2 gap-1 rounded-2xl border border-white/10 bg-blue-950/25 p-1">
-            <button
-              type="button"
-              onClick={() => setWorkspaceMode("web-search")}
-              className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
+          <nav className="grid grid-cols-2 gap-1 rounded-lg border border-white/10 bg-black/16 p-1">
+            <Link
+              href="/search"
+              className={`rounded-md px-3 py-2 text-center text-sm font-bold transition ${
                 workspaceMode === "web-search"
-                  ? "bg-white text-blue-950 shadow-sm"
+                  ? "bg-white text-[#12312f] shadow-sm"
                   : "text-blue-100 hover:bg-white/10"
               }`}
             >
               Web Search
-            </button>
-            <button
-              type="button"
-              onClick={() => setWorkspaceMode("article-import")}
-              className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
+            </Link>
+            <Link
+              href="/article-import"
+              className={`rounded-md px-3 py-2 text-center text-sm font-bold transition ${
                 workspaceMode === "article-import"
-                  ? "bg-orange-300 text-blue-950 shadow-sm"
+                  ? "bg-[#f2b84b] text-[#12312f] shadow-sm"
                   : "text-blue-100 hover:bg-white/10"
               }`}
             >
               Viết blog
-            </button>
-          </div>
+            </Link>
+          </nav>
 
           {workspaceMode === "web-search" ? (
             <button
@@ -715,7 +717,7 @@ export function SearchWorkspace() {
               onClick={() => {
                 void handleCreateSession();
               }}
-              className="w-full rounded-xl border border-white/15 bg-white/8 px-3 py-2 text-left text-sm font-medium text-white shadow-sm hover:bg-white/14"
+              className="w-full rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-left text-sm font-bold text-white shadow-sm hover:bg-white/15"
             >
               Chat mới
             </button>
@@ -725,7 +727,7 @@ export function SearchWorkspace() {
         <div className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
           {workspaceMode === "web-search" ? (
             <>
-              <p className="px-2 text-[11px] font-semibold uppercase text-blue-200/70">Lịch sử chat</p>
+              <p className="px-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[#b8c9c3]">Lịch sử chat</p>
               {sessionError ? <p className="mt-2 px-2 text-xs text-orange-200">{sessionError}</p> : null}
               {isLoadingSessions ? <p className="mt-2 px-2 text-xs text-blue-100/60">Loading...</p> : null}
               <div className="mt-2 space-y-1">
@@ -734,8 +736,8 @@ export function SearchWorkspace() {
                   return (
                     <div
                       key={session.id}
-                      className={`group rounded-xl transition ${
-                        isActive ? "bg-white text-blue-950 shadow-sm" : "hover:bg-white/10"
+                      className={`group rounded-lg transition ${
+                        isActive ? "bg-white text-[#12312f] shadow-sm" : "hover:bg-white/10"
                       }`}
                     >
                       <button
@@ -758,7 +760,7 @@ export function SearchWorkspace() {
                           onClick={() => void handleDeleteSession(session.id)}
                           className={`rounded-lg border px-2 py-1 text-[11px] ${
                             isActive
-                              ? "border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100"
+                              ? "border-[#f2b84b]/40 bg-[#fff8e7] text-[#92400e] hover:bg-[#fff1c2]"
                               : "border-orange-300/30 text-orange-100 hover:bg-orange-900/30"
                           }`}
                         >
@@ -774,7 +776,7 @@ export function SearchWorkspace() {
               </div>
             </>
           ) : (
-            <div className="rounded-2xl border border-white/10 bg-white/8 px-3 py-3">
+            <div className="rounded-lg border border-white/10 bg-white/10 px-3 py-3">
               <p className="text-sm font-semibold text-white">Article Import</p>
               <p className="mt-1 text-xs leading-5 text-blue-100/65">
                 Nhập URL nguồn, tách block, tải ảnh, tạo draft và đẩy sang WordPress.
@@ -785,7 +787,7 @@ export function SearchWorkspace() {
 
         <div className="space-y-2 border-t border-white/10 p-3">
           {currentUser ? (
-            <div className="rounded-xl border border-white/10 bg-white/8 px-3 py-2">
+            <div className="rounded-lg border border-white/10 bg-white/10 px-3 py-2">
               <p className="truncate text-xs font-semibold text-white">{currentUser.email}</p>
               <p className="mt-0.5 text-[11px] text-blue-100/60">Role: {currentUser.roles.join(", ") || "user"}</p>
             </div>
@@ -793,7 +795,7 @@ export function SearchWorkspace() {
           <button
             type="button"
             onClick={() => setSettingsOpen(true)}
-            className="w-full rounded-xl bg-orange-300 px-3 py-2 text-left text-sm font-semibold text-blue-950 shadow-sm hover:bg-orange-200"
+            className="w-full rounded-lg bg-[#f2b84b] px-3 py-2 text-left text-sm font-bold text-[#12312f] shadow-sm hover:bg-[#ffd166]"
           >
             Cài đặt
           </button>
@@ -801,7 +803,7 @@ export function SearchWorkspace() {
             <button
               type="button"
               onClick={() => setAdminOpen(true)}
-              className="w-full rounded-xl border border-orange-200/50 bg-white/8 px-3 py-2 text-left text-sm font-semibold text-white hover:bg-white/10"
+              className="w-full rounded-lg border border-[#f2b84b]/45 bg-white/10 px-3 py-2 text-left text-sm font-bold text-white hover:bg-white/15"
             >
               Quản trị
             </button>
@@ -809,7 +811,7 @@ export function SearchWorkspace() {
           <button
             type="button"
             onClick={() => void handleLogout()}
-            className="w-full rounded-xl border border-white/15 px-3 py-2 text-left text-sm font-semibold text-white hover:bg-white/10"
+            className="w-full rounded-lg border border-white/15 px-3 py-2 text-left text-sm font-bold text-white hover:bg-white/10"
           >
             Đăng xuất
           </button>
@@ -823,57 +825,57 @@ export function SearchWorkspace() {
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase text-orange-600">Admin</p>
-            <h3 className="text-xl font-semibold text-stone-950">Users</h3>
-            <p className="mt-1 text-sm text-stone-600">Danh sách tài khoản trong hệ thống.</p>
+            <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-[#d97706]">Admin</p>
+            <h3 className="text-xl font-extrabold text-[#18201c]">Users</h3>
+            <p className="mt-1 text-sm text-[#66736b]">Danh sách tài khoản trong hệ thống.</p>
           </div>
           <button
             type="button"
             onClick={() => void loadAdminUsers()}
-            className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-800 hover:bg-blue-50"
+            className="rounded-lg border border-[#dfe6dc] bg-white px-3 py-2 text-xs font-bold text-[#12312f] hover:bg-[#e6f3ef]"
           >
             Refresh
           </button>
         </div>
 
-        {adminUsersError ? <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{adminUsersError}</p> : null}
+        {adminUsersError ? <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{adminUsersError}</p> : null}
 
-        <div className="overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm">
-          <div className="grid grid-cols-[1.4fr_1fr_0.8fr_1fr_1.2fr] gap-3 border-b border-blue-100 bg-blue-50/60 px-4 py-3 text-xs font-semibold uppercase text-blue-700">
+        <div className="overflow-hidden rounded-lg border border-[#dfe6dc] bg-white shadow-sm shadow-[#12312f]/5">
+          <div className="grid grid-cols-[1.4fr_1fr_0.8fr_1fr_1.2fr] gap-3 border-b border-[#dfe6dc] bg-[#fbfcf7] px-4 py-3 text-xs font-extrabold uppercase tracking-[0.12em] text-[#0f766e]">
             <span>Email</span>
             <span>Roles</span>
             <span>Status</span>
             <span>Last login</span>
             <span>Actions</span>
           </div>
-          {isLoadingAdminUsers ? <p className="px-4 py-4 text-sm text-stone-500">Loading...</p> : null}
+          {isLoadingAdminUsers ? <p className="px-4 py-4 text-sm text-[#66736b]">Loading...</p> : null}
           {!isLoadingAdminUsers && adminUsers.length === 0 ? (
-            <p className="px-4 py-4 text-sm text-stone-500">Chưa có user.</p>
+            <p className="px-4 py-4 text-sm text-[#66736b]">Chưa có user.</p>
           ) : null}
           {adminUsers.map((user) => (
             <div
               key={user.id}
-              className="grid grid-cols-[1.4fr_1fr_0.8fr_1fr_1.2fr] gap-3 border-b border-blue-50 px-4 py-3 text-sm last:border-b-0"
+              className="grid grid-cols-[1.4fr_1fr_0.8fr_1fr_1.2fr] gap-3 border-b border-[#edf2ec] px-4 py-3 text-sm last:border-b-0"
             >
               <div className="min-w-0">
-                <p className="truncate font-medium text-stone-900">{user.email}</p>
-                <p className="truncate text-xs text-stone-500">{user.username || user.full_name || user.id}</p>
+                <p className="truncate font-bold text-[#18201c]">{user.email}</p>
+                <p className="truncate text-xs text-[#66736b]">{user.username || user.full_name || user.id}</p>
               </div>
-              <p className="text-stone-700">{user.roles.join(", ") || "user"}</p>
-              <p className="text-stone-700">{user.status}</p>
-              <p className="text-stone-700">{user.last_login_at ? prettyDate(user.last_login_at) : "-"}</p>
+              <p className="text-[#4d5a53]">{user.roles.join(", ") || "user"}</p>
+              <p className="text-[#4d5a53]">{user.status}</p>
+              <p className="text-[#4d5a53]">{user.last_login_at ? prettyDate(user.last_login_at) : "-"}</p>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => void handleUpdateUserStatus(user.id, user.status === "active" ? "disabled" : "active")}
-                  className="rounded-lg border border-blue-200 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                  className="rounded-lg border border-[#dfe6dc] px-2 py-1 text-xs font-bold text-[#12312f] hover:bg-[#e6f3ef]"
                 >
                   {user.status === "active" ? "Disable" : "Enable"}
                 </button>
                 <button
                   type="button"
                   onClick={() => void handleToggleAdminRole(user)}
-                  className="rounded-lg border border-orange-200 px-2 py-1 text-xs font-medium text-orange-700 hover:bg-orange-50"
+                  className="rounded-lg border border-orange-200 px-2 py-1 text-xs font-bold text-orange-700 hover:bg-orange-50"
                 >
                   {user.roles.includes("admin") ? "Remove admin" : "Make admin"}
                 </button>
@@ -890,41 +892,41 @@ export function SearchWorkspace() {
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold uppercase text-orange-600">Admin</p>
-            <h3 className="text-xl font-semibold text-stone-950">Audit</h3>
-            <p className="mt-1 text-sm text-stone-600">Các thao tác quản trị và vận hành gần đây.</p>
+            <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-[#d97706]">Admin</p>
+            <h3 className="text-xl font-extrabold text-[#18201c]">Audit</h3>
+            <p className="mt-1 text-sm text-[#66736b]">Các thao tác quản trị và vận hành gần đây.</p>
           </div>
           <button
             type="button"
             onClick={() => void loadAdminAuditEvents()}
-            className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-800 hover:bg-blue-50"
+            className="rounded-lg border border-[#dfe6dc] bg-white px-3 py-2 text-xs font-bold text-[#12312f] hover:bg-[#e6f3ef]"
           >
             Refresh
           </button>
         </div>
 
-        {adminAuditError ? <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700">{adminAuditError}</p> : null}
+        {adminAuditError ? <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{adminAuditError}</p> : null}
 
-        <div className="overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm">
-          <div className="grid grid-cols-[1fr_1fr_1fr_1.5fr] gap-3 border-b border-blue-100 bg-blue-50/60 px-4 py-3 text-xs font-semibold uppercase text-blue-700">
+        <div className="overflow-hidden rounded-lg border border-[#dfe6dc] bg-white shadow-sm shadow-[#12312f]/5">
+          <div className="grid grid-cols-[1fr_1fr_1fr_1.5fr] gap-3 border-b border-[#dfe6dc] bg-[#fbfcf7] px-4 py-3 text-xs font-extrabold uppercase tracking-[0.12em] text-[#0f766e]">
             <span>Time</span>
             <span>Actor</span>
             <span>Action</span>
             <span>Target</span>
           </div>
-          {isLoadingAdminAudit ? <p className="px-4 py-4 text-sm text-stone-500">Loading...</p> : null}
+          {isLoadingAdminAudit ? <p className="px-4 py-4 text-sm text-[#66736b]">Loading...</p> : null}
           {!isLoadingAdminAudit && adminAuditEvents.length === 0 ? (
-            <p className="px-4 py-4 text-sm text-stone-500">Chưa có audit event.</p>
+            <p className="px-4 py-4 text-sm text-[#66736b]">Chưa có audit event.</p>
           ) : null}
           {adminAuditEvents.map((event, index) => (
             <div
               key={`${event.timestamp}-${event.action}-${index}`}
-              className="grid grid-cols-[1fr_1fr_1fr_1.5fr] gap-3 border-b border-blue-50 px-4 py-3 text-sm last:border-b-0"
+              className="grid grid-cols-[1fr_1fr_1fr_1.5fr] gap-3 border-b border-[#edf2ec] px-4 py-3 text-sm last:border-b-0"
             >
-              <p className="text-stone-700">{prettyDate(event.timestamp)}</p>
-              <p className="text-stone-700">{event.actor_role}</p>
-              <p className="font-medium text-stone-900">{event.action}</p>
-              <p className="truncate text-stone-700">
+              <p className="text-[#4d5a53]">{prettyDate(event.timestamp)}</p>
+              <p className="text-[#4d5a53]">{event.actor_role}</p>
+              <p className="font-bold text-[#18201c]">{event.action}</p>
+              <p className="truncate text-[#4d5a53]">
                 {event.method} {event.path} · {event.status}
               </p>
             </div>
@@ -1048,17 +1050,17 @@ export function SearchWorkspace() {
     }
 
     return (
-      <div className="fixed inset-0 z-50 bg-blue-950/45 p-3 backdrop-blur-sm md:p-6">
-        <div className="mx-auto flex max-h-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-blue-100 bg-[#f8fbff] shadow-2xl">
-          <div className="flex items-center justify-between border-b border-blue-100 bg-white px-5 py-4">
+      <div className="fixed inset-0 z-50 bg-[#12312f]/45 p-3 backdrop-blur-sm md:p-6">
+        <div className="surface-in mx-auto flex max-h-full max-w-4xl flex-col overflow-hidden rounded-lg border border-[#dfe6dc] bg-[#f7f8f4] shadow-2xl shadow-black/20">
+          <div className="flex items-center justify-between border-b border-[#dfe6dc] bg-white px-5 py-4">
             <div>
-              <p className="text-xs font-semibold uppercase text-orange-600">Cài đặt</p>
-              <h2 className="text-lg font-semibold text-stone-900">Tài khoản và cấu hình nhanh</h2>
+              <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-[#d97706]">Cài đặt</p>
+              <h2 className="text-lg font-extrabold text-[#18201c]">Tài khoản và cấu hình nhanh</h2>
             </div>
             <button
               type="button"
               onClick={() => setSettingsOpen(false)}
-              className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-800 hover:bg-blue-50"
+              className="rounded-lg border border-[#dfe6dc] bg-white px-3 py-2 text-xs font-bold text-[#12312f] hover:bg-[#e6f3ef]"
             >
               Đóng
             </button>
@@ -1066,8 +1068,8 @@ export function SearchWorkspace() {
 
           <div className="space-y-4 overflow-y-auto p-5">
             <div className="grid gap-4 lg:grid-cols-2">
-              <div className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
-                <p className="text-xs font-semibold uppercase text-blue-600">Tài khoản</p>
+              <div className="rounded-lg border border-[#dfe6dc] bg-white p-4 shadow-sm shadow-[#12312f]/5">
+                <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-[#0f766e]">Tài khoản</p>
                 <dl className="mt-3 space-y-2 text-sm">
                   <div>
                     <dt className="text-stone-500">Username</dt>
@@ -1091,8 +1093,8 @@ export function SearchWorkspace() {
                 </button>
               </div>
 
-              <div className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
-                <p className="text-xs font-semibold uppercase text-blue-600">Tìm kiếm</p>
+              <div className="rounded-lg border border-[#dfe6dc] bg-white p-4 shadow-sm shadow-[#12312f]/5">
+                <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-[#0f766e]">Tìm kiếm</p>
                 <dl className="mt-3 space-y-2 text-sm">
                   <div>
                     <dt className="text-stone-500">Số nguồn mặc định</dt>
@@ -1109,8 +1111,8 @@ export function SearchWorkspace() {
                 </dl>
               </div>
 
-              <div className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
-                <p className="text-xs font-semibold uppercase text-blue-600">Article Import</p>
+              <div className="rounded-lg border border-[#dfe6dc] bg-white p-4 shadow-sm shadow-[#12312f]/5">
+                <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-[#0f766e]">Article Import</p>
                 <dl className="mt-3 space-y-2 text-sm">
                   <div>
                     <dt className="text-stone-500">Ngôn ngữ dịch</dt>
@@ -1128,8 +1130,8 @@ export function SearchWorkspace() {
                 <p className="mt-3 text-xs text-stone-500">Backend dịch theo batch vừa phải để nhanh hơn nhưng vẫn hạn chế timeout/rate-limit.</p>
               </div>
 
-              <div className="rounded-2xl border border-blue-100 bg-white p-4 shadow-sm">
-                <p className="text-xs font-semibold uppercase text-blue-600">9Router và WordPress</p>
+              <div className="rounded-lg border border-[#dfe6dc] bg-white p-4 shadow-sm shadow-[#12312f]/5">
+                <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-[#0f766e]">9Router và WordPress</p>
                 <dl className="mt-3 space-y-2 text-sm">
                   <div>
                     <dt className="text-stone-500">9Router dashboard</dt>
@@ -1156,7 +1158,7 @@ export function SearchWorkspace() {
                 onDelete={handleDeleteKey}
               />
             ) : (
-              <div className="rounded-2xl border border-blue-100 bg-white p-4 text-sm text-stone-600 shadow-sm">
+              <div className="rounded-lg border border-[#dfe6dc] bg-white p-4 text-sm text-[#66736b] shadow-sm shadow-[#12312f]/5">
                 Tavily keys do admin cấu hình. Nếu search không có Tavily key, backend sẽ dùng fallback SearXNG khi khả dụng.
               </div>
             )}
@@ -1172,33 +1174,33 @@ export function SearchWorkspace() {
     }
 
     return (
-      <div className="fixed inset-0 z-50 bg-blue-950/45 p-3 backdrop-blur-sm md:p-6">
-        <div className="mx-auto flex h-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-blue-100 bg-[#f8fbff] shadow-2xl">
-          <div className="flex items-center justify-between border-b border-blue-100 bg-white px-5 py-4">
+      <div className="fixed inset-0 z-50 bg-[#12312f]/45 p-3 backdrop-blur-sm md:p-6">
+        <div className="surface-in mx-auto flex h-full max-w-6xl flex-col overflow-hidden rounded-lg border border-[#dfe6dc] bg-[#f7f8f4] shadow-2xl shadow-black/20">
+          <div className="flex items-center justify-between border-b border-[#dfe6dc] bg-white px-5 py-4">
             <div>
-              <p className="text-xs font-semibold uppercase text-orange-600">Quản trị</p>
-              <h2 className="text-lg font-semibold text-stone-900">Quản lý hệ thống</h2>
+              <p className="text-xs font-extrabold uppercase tracking-[0.14em] text-[#d97706]">Quản trị</p>
+              <h2 className="text-lg font-extrabold text-[#18201c]">Quản lý hệ thống</h2>
             </div>
             <button
               type="button"
               onClick={() => setAdminOpen(false)}
-              className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-800 hover:bg-blue-50"
+              className="rounded-lg border border-[#dfe6dc] bg-white px-3 py-2 text-xs font-bold text-[#12312f] hover:bg-[#e6f3ef]"
             >
               Đóng
             </button>
           </div>
 
           <div className="grid min-h-0 flex-1 md:grid-cols-[220px_1fr]">
-            <nav className="flex gap-2 overflow-x-auto border-b border-blue-100 bg-white p-3 md:block md:space-y-1 md:overflow-visible md:border-b-0 md:border-r">
+            <nav className="flex gap-2 overflow-x-auto border-b border-[#dfe6dc] bg-white p-3 md:block md:space-y-1 md:overflow-visible md:border-b-0 md:border-r md:border-[#dfe6dc]">
               {adminNavItems.map((item) => (
                 <button
                   key={item.key}
                   type="button"
                   onClick={() => setActiveAdminTab(item.key)}
-                  className={`shrink-0 rounded-xl px-3 py-2 text-left text-sm font-medium transition md:w-full ${
+                  className={`shrink-0 rounded-lg px-3 py-2 text-left text-sm font-bold transition md:w-full ${
                     visibleAdminTab === item.key
-                      ? "bg-blue-700 text-white shadow-sm"
-                      : "border border-blue-100 bg-white text-stone-700 hover:bg-orange-50 md:border-0"
+                      ? "bg-[#0f766e] text-white shadow-sm shadow-[#0f766e]/20"
+                      : "border border-[#dfe6dc] bg-white text-[#4d5a53] hover:bg-[#e6f3ef] md:border-0"
                   }`}
                 >
                   {item.label}
@@ -1217,17 +1219,17 @@ export function SearchWorkspace() {
 
   function renderChatWorkspace() {
     return (
-      <div className="flex h-screen min-h-0 flex-col bg-[#f5f9ff]">
-        <header className="flex items-center justify-between border-b border-blue-100 bg-white/90 px-4 py-3 backdrop-blur">
+      <div className="flex h-screen min-h-0 flex-col bg-[#f7f8f4]">
+        <header className="flex items-center justify-between border-b border-[#dfe6dc] bg-white/88 px-4 py-3 shadow-sm shadow-black/[0.03] backdrop-blur md:px-6">
           <div className="min-w-0">
-            <h1 className="truncate text-base font-semibold text-stone-900">Web Search Chat</h1>
-            <p className="truncate text-xs text-blue-700/70">{currentSessionLabel}</p>
+            <h1 className="truncate text-base font-extrabold text-[#18201c]">Web Search Chat</h1>
+            <p className="truncate text-xs font-medium text-[#66736b]">{currentSessionLabel}</p>
           </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setSettingsOpen(true)}
-              className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-800 shadow-sm hover:bg-orange-50"
+              className="rounded-lg border border-[#dfe6dc] bg-white px-3 py-2 text-xs font-bold text-[#12312f] shadow-sm hover:border-[#f2b84b] hover:bg-[#fff8e7]"
             >
               Cài đặt
             </button>
@@ -1235,7 +1237,7 @@ export function SearchWorkspace() {
               <button
                 type="button"
                 onClick={() => setAdminOpen(true)}
-                className="rounded-xl bg-blue-700 px-3 py-2 text-xs font-medium text-white shadow-sm hover:bg-blue-600"
+                className="rounded-lg bg-[#0f766e] px-3 py-2 text-xs font-bold text-white shadow-sm shadow-[#0f766e]/20 hover:bg-[#115e59]"
               >
                 Quản trị
               </button>
@@ -1243,8 +1245,8 @@ export function SearchWorkspace() {
           </div>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-5 md:px-8">
-          <div className="mx-auto max-w-3xl space-y-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 py-6 md:px-8">
+          <div className="surface-in mx-auto max-w-3xl space-y-4">
             <SearchResultPanel
               isLoading={isSearching}
               errorMessage={searchError}
@@ -1257,20 +1259,20 @@ export function SearchWorkspace() {
           </div>
         </div>
 
-        <div className="border-t border-blue-100 bg-white/90 px-3 py-3 backdrop-blur md:px-8">
-          <form onSubmit={handleSearch} className="mx-auto grid max-w-3xl gap-2 rounded-3xl border border-blue-200 bg-white p-2 shadow-lg shadow-blue-900/5 md:grid-cols-[1fr_120px_auto]">
+        <div className="border-t border-[#dfe6dc] bg-white/90 px-3 py-3 shadow-[0_-16px_40px_rgba(18,49,47,0.06)] backdrop-blur md:px-8">
+          <form onSubmit={handleSearch} className="mx-auto grid max-w-3xl gap-2 rounded-lg border border-[#cfd9cf] bg-white p-2 shadow-xl shadow-[#12312f]/8 md:grid-cols-[1fr_120px_auto]">
             <input
               type="text"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Nhập câu hỏi cần tìm trên web..."
-              className="rounded-2xl border-0 px-3 py-2 text-sm focus:outline-none"
+              className="rounded-md border-0 bg-transparent px-3 py-2 text-sm focus:outline-none"
             />
             <label
-              className="grid rounded-2xl border border-blue-100 bg-blue-50/60 px-3 py-1.5 focus-within:border-orange-400"
+              className="grid rounded-md border border-[#dfe6dc] bg-[#f7f8f4] px-3 py-1.5 focus-within:border-[#0f766e] focus-within:ring-4 focus-within:ring-[#0f766e]/10"
               title="Số kết quả web tối đa sẽ lấy làm nguồn cho câu trả lời."
             >
-              <span className="text-[10px] font-semibold uppercase leading-none text-blue-600">Nguồn</span>
+              <span className="text-[10px] font-bold uppercase leading-none tracking-[0.12em] text-[#0f766e]">Nguồn</span>
               <input
                 type="number"
                 min={1}
@@ -1278,19 +1280,19 @@ export function SearchWorkspace() {
                 value={topK}
                 onChange={(event) => setTopK(Number(event.target.value) || 5)}
                 aria-label="Số nguồn web"
-                className="w-full bg-transparent text-sm text-blue-950 focus:outline-none"
+                className="w-full bg-transparent text-sm font-bold text-[#12312f] focus:outline-none"
               />
             </label>
             <button
               type="submit"
               disabled={isSearching}
-              className="rounded-2xl bg-orange-500 px-5 py-2 text-sm font-semibold text-white transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-md bg-[#d97706] px-5 py-2 text-sm font-bold text-white shadow-lg shadow-[#d97706]/20 transition hover:bg-[#b45309] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSearching ? "Đang tìm..." : "Tìm web"}
             </button>
           </form>
           {featureSessionHistory && currentSessionId ? (
-            <p className="mx-auto mt-2 max-w-3xl break-all text-xs text-stone-400">Mã phiên: {currentSessionId}</p>
+            <p className="mx-auto mt-2 max-w-3xl break-all text-xs font-medium text-[#66736b]">Mã phiên: {currentSessionId}</p>
           ) : null}
         </div>
       </div>
@@ -1299,17 +1301,17 @@ export function SearchWorkspace() {
 
   function renderArticleImportWorkspace() {
     return (
-      <div className="flex h-screen min-h-0 flex-col bg-[#f5f9ff]">
-        <header className="flex items-center justify-between border-b border-blue-100 bg-white/90 px-4 py-3 backdrop-blur">
+      <div className="flex h-screen min-h-0 flex-col bg-[#f7f8f4]">
+        <header className="flex items-center justify-between border-b border-[#dfe6dc] bg-white/88 px-4 py-3 shadow-sm shadow-black/[0.03] backdrop-blur md:px-6">
           <div className="min-w-0">
-            <h1 className="truncate text-base font-semibold text-stone-900">Article Import</h1>
-            <p className="truncate text-xs text-blue-700/70">Cào dữ liệu và dựng bài WordPress</p>
+            <h1 className="truncate text-base font-extrabold text-[#18201c]">Article Import</h1>
+            <p className="truncate text-xs font-medium text-[#66736b]">Cào dữ liệu và dựng bài WordPress</p>
           </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setSettingsOpen(true)}
-              className="rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-medium text-blue-800 shadow-sm hover:bg-orange-50"
+              className="rounded-lg border border-[#dfe6dc] bg-white px-3 py-2 text-xs font-bold text-[#12312f] shadow-sm hover:border-[#f2b84b] hover:bg-[#fff8e7]"
             >
               Cài đặt
             </button>
@@ -1317,7 +1319,7 @@ export function SearchWorkspace() {
               <button
                 type="button"
                 onClick={() => setAdminOpen(true)}
-                className="rounded-xl bg-blue-700 px-3 py-2 text-xs font-medium text-white shadow-sm hover:bg-blue-600"
+                className="rounded-lg bg-[#0f766e] px-3 py-2 text-xs font-bold text-white shadow-sm shadow-[#0f766e]/20 hover:bg-[#115e59]"
               >
                 Quản trị
               </button>
@@ -1326,7 +1328,7 @@ export function SearchWorkspace() {
         </header>
 
         <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-5 md:px-8">
-          <div className="mx-auto w-full max-w-6xl min-w-0">
+          <div className="surface-in mx-auto w-full max-w-6xl min-w-0">
             <ArticleImportPanel authToken={authToken || ""} />
           </div>
         </div>
@@ -1342,10 +1344,7 @@ export function SearchWorkspace() {
     <main className={`grid min-h-screen ${featureSessionHistory ? "md:grid-cols-[280px_1fr]" : ""}`}>
       {renderSessionSidebar()}
       <section className="min-w-0 overflow-x-hidden">
-        <div className={workspaceMode === "web-search" ? "block" : "hidden"}>{renderChatWorkspace()}</div>
-        <div className={workspaceMode === "article-import" ? "block" : "hidden"}>
-          {renderArticleImportWorkspace()}
-        </div>
+        {workspaceMode === "web-search" ? renderChatWorkspace() : renderArticleImportWorkspace()}
       </section>
       {renderSettingsModal()}
       {renderAdminModal()}

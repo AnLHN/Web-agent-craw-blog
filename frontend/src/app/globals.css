@@ -1,9 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f5f9ff;
-  --foreground: #172033;
+  --background: #f7f8f4;
+  --foreground: #18201c;
   --surface: #ffffff;
+  --ink-muted: #66736b;
+  --line: #dfe6dc;
+  --accent: #0f766e;
+  --accent-strong: #115e59;
+  --warning: #d97706;
+  --sidebar: #12312f;
 }
 
 @theme inline {
@@ -17,8 +23,62 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  background-image: radial-gradient(circle at 12% 10%, #bfdbfe 0%, transparent 24%),
-    radial-gradient(circle at 88% 0%, #fed7aa 0%, transparent 22%),
-    linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%);
+  background-image:
+    linear-gradient(135deg, rgba(15, 118, 110, 0.06) 0 1px, transparent 1px),
+    linear-gradient(180deg, #fbfcf7 0%, #eef3ef 100%);
+  background-size: 28px 28px, auto;
   font-family: var(--font-geist-sans), sans-serif;
+  letter-spacing: 0;
+}
+
+::selection {
+  background: rgba(15, 118, 110, 0.18);
+  color: #12312f;
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+button:hover,
+a:hover {
+  transform: translateY(-1px);
+}
+
+input,
+textarea {
+  color: var(--foreground);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #93a098;
+}
+
+details[open] {
+  animation: surface-in 180ms ease-out;
+}
+
+.surface-in {
+  animation: surface-in 220ms ease-out both;
+}
+
+@keyframes surface-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

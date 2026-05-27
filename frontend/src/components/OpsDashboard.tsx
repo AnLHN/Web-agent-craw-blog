@@ -144,24 +144,24 @@ export function OpsDashboard({ authToken, onKeysChanged }: OpsDashboardProps) {
   }
 
   return (
-    <section className="rounded-2xl border border-stone-300 bg-white/90 p-5 shadow-sm">
+    <section className="rounded-lg border border-[#dfe6dc] bg-white p-5 shadow-sm shadow-[#12312f]/5">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-stone-900">Ops Dashboard</h2>
+        <h2 className="text-lg font-extrabold text-[#18201c]">Ops Dashboard</h2>
         <button
           type="button"
           onClick={() => void reloadAll()}
-          className="rounded-lg border border-stone-300 bg-white px-3 py-1 text-xs text-stone-700 hover:bg-stone-100"
+          className="rounded-lg border border-[#dfe6dc] bg-white px-3 py-1.5 text-xs font-bold text-[#12312f] hover:border-[#0f766e] hover:bg-[#e6f3ef]"
         >
           {isLoading ? "Refreshing..." : "Refresh"}
         </button>
       </div>
 
-      {statusMessage ? <p className="mt-2 text-sm text-stone-700">{statusMessage}</p> : null}
+      {statusMessage ? <p className="mt-3 rounded-lg border border-[#dfe6dc] bg-[#fbfcf7] px-3 py-2 text-sm text-[#4d5a53]">{statusMessage}</p> : null}
 
-      <div className="mt-4 rounded-xl border border-stone-200 p-3">
-        <h3 className="text-sm font-semibold text-stone-800">System Status</h3>
+      <div className="mt-4 rounded-lg border border-[#dfe6dc] bg-[#fbfcf7] p-4">
+        <h3 className="text-sm font-extrabold text-[#18201c]">System Status</h3>
         {systemStatus ? (
-          <div className="mt-2 grid gap-2 text-xs text-stone-700 md:grid-cols-2">
+          <div className="mt-3 grid gap-2 text-xs text-[#4d5a53] md:grid-cols-2">
             <p>Status: {systemStatus.status}</p>
             <p>Environment: {systemStatus.environment}</p>
             <p>Auth: {systemStatus.auth_store_backend} / {systemStatus.auth_service_type}</p>
@@ -174,12 +174,12 @@ export function OpsDashboard({ authToken, onKeysChanged }: OpsDashboardProps) {
             <p>Article storage: {systemStatus.article_import_storage_path}</p>
           </div>
         ) : (
-          <p className="mt-2 text-xs text-stone-500">System status has not been loaded yet.</p>
+          <p className="mt-2 text-xs text-[#66736b]">System status has not been loaded yet.</p>
         )}
         {systemStatus ? (
           <div className="mt-3 flex flex-wrap gap-2">
             {Object.entries(systemStatus.readiness_checks).map(([name, value]) => (
-              <span key={name} className="rounded-full border border-stone-200 px-2 py-1 text-[11px] text-stone-700">
+              <span key={name} className="rounded-full border border-[#dfe6dc] bg-white px-2 py-1 text-[11px] font-medium text-[#4d5a53]">
                 {name}: {value}
               </span>
             ))}
@@ -188,30 +188,30 @@ export function OpsDashboard({ authToken, onKeysChanged }: OpsDashboardProps) {
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        <div className="rounded-xl border border-stone-200 p-3">
-          <h3 className="text-sm font-semibold text-stone-800">Tavily Metrics</h3>
-          <p className="mt-1 text-xs text-stone-600">
+        <div className="rounded-lg border border-[#dfe6dc] p-4">
+          <h3 className="text-sm font-extrabold text-[#18201c]">Tavily Metrics</h3>
+          <p className="mt-1 text-xs text-[#66736b]">
             Keys: {metrics?.total_keys ?? 0} | Active: {metrics?.active_keys ?? 0} | Unhealthy:{" "}
             {metrics?.unhealthy_keys ?? 0}
           </p>
           <div className="mt-3 space-y-2">
             {(metrics?.keys || []).map((key) => (
-              <div key={key.id} className="rounded-lg border border-stone-200 p-2">
-                <p className="text-xs font-medium text-stone-800">
+              <div key={key.id} className="rounded-lg border border-[#dfe6dc] bg-[#fbfcf7] p-3">
+                <p className="text-xs font-bold text-[#18201c]">
                   {key.label} ({key.status})
                 </p>
                 <div className="mt-2 flex gap-2">
                   <button
                     type="button"
                     onClick={() => void handleToggleKey(key.id, key.status)}
-                    className="rounded-md border border-stone-300 px-2 py-1 text-[11px] text-stone-700 hover:bg-stone-100"
+                    className="rounded-md border border-[#dfe6dc] bg-white px-2 py-1 text-[11px] font-bold text-[#12312f] hover:border-[#0f766e] hover:bg-[#e6f3ef]"
                   >
                     {key.status === "disabled" ? "Enable" : "Disable"}
                   </button>
                   <button
                     type="button"
                     onClick={() => void handleResetCooldown(key.id)}
-                    className="rounded-md border border-stone-300 px-2 py-1 text-[11px] text-stone-700 hover:bg-stone-100"
+                    className="rounded-md border border-[#dfe6dc] bg-white px-2 py-1 text-[11px] font-bold text-[#12312f] hover:border-[#d97706] hover:bg-[#fff8e7]"
                   >
                     Reset cooldown
                   </button>
@@ -221,8 +221,8 @@ export function OpsDashboard({ authToken, onKeysChanged }: OpsDashboardProps) {
           </div>
         </div>
 
-        <div className="rounded-xl border border-stone-200 p-3">
-          <h3 className="text-sm font-semibold text-stone-800">LLM Runtime</h3>
+        <div className="rounded-lg border border-[#dfe6dc] p-4">
+          <h3 className="text-sm font-extrabold text-[#18201c]">LLM Runtime</h3>
           <form onSubmit={handleSaveLlmConfig} className="mt-2 grid gap-2">
             <input
               type="text"
@@ -231,7 +231,7 @@ export function OpsDashboard({ authToken, onKeysChanged }: OpsDashboardProps) {
                 setLlmConfig((prev) => ({ ...safeConfig(prev), base_url: event.target.value }))
               }
               placeholder="Base URL"
-              className="rounded-md border border-stone-300 px-2 py-1 text-sm"
+              className="rounded-md border border-[#dfe6dc] bg-[#fbfcf7] px-2 py-1.5 text-sm focus:border-[#0f766e] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10"
             />
             <input
               type="text"
@@ -240,7 +240,7 @@ export function OpsDashboard({ authToken, onKeysChanged }: OpsDashboardProps) {
                 setLlmConfig((prev) => ({ ...safeConfig(prev), model: event.target.value }))
               }
               placeholder="Model"
-              className="rounded-md border border-stone-300 px-2 py-1 text-sm"
+              className="rounded-md border border-[#dfe6dc] bg-[#fbfcf7] px-2 py-1.5 text-sm focus:border-[#0f766e] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10"
             />
             <div className="grid grid-cols-2 gap-2">
               <input
@@ -255,7 +255,7 @@ export function OpsDashboard({ authToken, onKeysChanged }: OpsDashboardProps) {
                     temperature: Number(event.target.value) || 0,
                   }))
                 }
-                className="rounded-md border border-stone-300 px-2 py-1 text-sm"
+                className="rounded-md border border-[#dfe6dc] bg-[#fbfcf7] px-2 py-1.5 text-sm focus:border-[#0f766e] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10"
               />
               <input
                 type="number"
@@ -269,7 +269,7 @@ export function OpsDashboard({ authToken, onKeysChanged }: OpsDashboardProps) {
                   }))
                 }
                 placeholder="max tokens"
-                className="rounded-md border border-stone-300 px-2 py-1 text-sm"
+                className="rounded-md border border-[#dfe6dc] bg-[#fbfcf7] px-2 py-1.5 text-sm focus:border-[#0f766e] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10"
               />
             </div>
             <input
@@ -284,57 +284,57 @@ export function OpsDashboard({ authToken, onKeysChanged }: OpsDashboardProps) {
                 }))
               }
               placeholder="summary max tokens"
-              className="rounded-md border border-stone-300 px-2 py-1 text-sm"
+              className="rounded-md border border-[#dfe6dc] bg-[#fbfcf7] px-2 py-1.5 text-sm focus:border-[#0f766e] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10"
             />
             <button
               type="submit"
-              className="rounded-md bg-stone-900 px-3 py-1 text-xs font-medium text-white hover:bg-stone-700"
+              className="rounded-md bg-[#0f766e] px-3 py-1.5 text-xs font-bold text-white shadow-sm shadow-[#0f766e]/20 hover:bg-[#115e59]"
             >
               Save config
             </button>
           </form>
-          <p className="mt-2 text-[11px] text-stone-500">
+          <p className="mt-2 text-[11px] text-[#66736b]">
             Prompt output guard: summary se bi gioi han theo summary max tokens.
           </p>
           <div className="mt-2 flex gap-2">
             <button
               type="button"
               onClick={() => void handleCheckLlmHealth()}
-              className="rounded-md border border-stone-300 px-2 py-1 text-[11px] text-stone-700 hover:bg-stone-100"
+              className="rounded-md border border-[#dfe6dc] px-2 py-1 text-[11px] font-bold text-[#12312f] hover:bg-[#e6f3ef]"
             >
               Health check
             </button>
             <button
               type="button"
               onClick={() => void handleLlmTest()}
-              className="rounded-md border border-stone-300 px-2 py-1 text-[11px] text-stone-700 hover:bg-stone-100"
+              className="rounded-md border border-[#dfe6dc] px-2 py-1 text-[11px] font-bold text-[#12312f] hover:bg-[#e6f3ef]"
             >
               Test run
             </button>
           </div>
-          {llmHealthMessage ? <p className="mt-2 text-xs text-stone-600">{llmHealthMessage}</p> : null}
+          {llmHealthMessage ? <p className="mt-2 text-xs text-[#66736b]">{llmHealthMessage}</p> : null}
           <textarea
             value={testPrompt}
             onChange={(event) => setTestPrompt(event.target.value)}
-            className="mt-2 h-16 w-full rounded-md border border-stone-300 px-2 py-1 text-xs"
+            className="mt-2 h-16 w-full rounded-md border border-[#dfe6dc] bg-[#fbfcf7] px-2 py-1.5 text-xs focus:border-[#0f766e] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#0f766e]/10"
           />
           {testOutput ? (
-            <pre className="mt-2 whitespace-pre-wrap rounded-md border border-stone-200 bg-stone-50 p-2 text-xs text-stone-700">
+            <pre className="mt-2 whitespace-pre-wrap rounded-md border border-[#dfe6dc] bg-[#111917] p-3 font-mono text-xs text-[#e8efe9]">
               {testOutput}
             </pre>
           ) : null}
         </div>
       </div>
 
-      <div className="mt-4 rounded-xl border border-stone-200 p-3">
-        <h3 className="text-sm font-semibold text-stone-800">Audit Logs</h3>
+      <div className="mt-4 rounded-lg border border-[#dfe6dc] p-4">
+        <h3 className="text-sm font-extrabold text-[#18201c]">Audit Logs</h3>
         <div className="mt-2 max-h-48 overflow-auto">
           {audit.map((item, idx) => (
-            <p key={`${item.timestamp}-${idx}`} className="text-xs text-stone-700">
+            <p key={`${item.timestamp}-${idx}`} className="text-xs leading-5 text-[#4d5a53]">
               [{item.timestamp}] {item.actor_role} {item.action} {item.status}
             </p>
           ))}
-          {audit.length === 0 ? <p className="text-xs text-stone-500">No audit logs yet.</p> : null}
+          {audit.length === 0 ? <p className="text-xs text-[#66736b]">No audit logs yet.</p> : null}
         </div>
       </div>
     </section>
