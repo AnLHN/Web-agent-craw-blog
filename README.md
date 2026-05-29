@@ -1,215 +1,334 @@
+<div align="center">
+
 # Web Agent Craw Blog
 
-Web Agent Craw Blog là ứng dụng web gồm FastAPI backend và Next.js frontend cho hai luồng chính:
+**AI-powered web search, article crawling, translation, and WordPress draft automation platform.**
 
-1. **Web search dạng chat**: Tavily-first retrieval, fallback SearXNG, tổng hợp bằng LLM OpenAI-compatible.
-2. **Article Import / Craw Blog**: nhập URL bài viết, crawl nội dung, tách text/media/code/table/list/link, dịch/biên tập bằng 9Router GPT 5.5, build draft HTML và hỗ trợ paste vào WordPress qua browser CDP.
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115-blue?style=for-the-badge)
+![Next.js](https://img.shields.io/badge/Next.js-16-black?style=for-the-badge)
+![React](https://img.shields.io/badge/React-19-blue?style=for-the-badge)
+![Python](https://img.shields.io/badge/Python-3.12-blue?style=for-the-badge)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?style=for-the-badge)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-38bdf8?style=for-the-badge)
+![Tavily](https://img.shields.io/badge/Tavily-Search-green?style=for-the-badge)
+![SearXNG](https://img.shields.io/badge/SearXNG-Fallback-orange?style=for-the-badge)
+![OpenAI Compatible](https://img.shields.io/badge/OpenAI--Compatible-LLM-purple?style=for-the-badge)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue?style=for-the-badge)
+![Docker](https://img.shields.io/badge/Docker-Production_Profile-blue?style=for-the-badge)
 
-Repository: https://github.com/AnLHN/Web-agent-craw-blog.git
+[Overview](#overview) . [System Flow](#system-flow) . [Quick Start](#quick-start) . [Pipelines](#application-pipelines) . [Repository Map](#repository-map) . [Docs](#docs-index)
 
-## Tính năng chính
+</div>
 
-- Chat UI giống trợ lý tìm kiếm: câu hỏi, câu trả lời, nguồn, confidence, session history.
-- Tavily-first search pipeline, SearXNG fallback, query expansion, evidence merge và quality gate.
-- LLM final summarizer dùng OpenAI-compatible API, có runtime config cho base URL/model/temperature/max tokens/prompt.
-- Article Import nhận URL bài viết, crawl HTML, tải ảnh, extract heading/paragraph/list/quote/table/code/embed/image.
-- Dịch bài theo batch cân bằng tối ưu qua 9Router GPT 5.5 (`cx/gpt-5.5`), có retry lỗi 429/500/502/503/504 và resume phần chưa dịch.
-- Giữ link qua dịch bằng placeholder `[LINK_n:label]`, render lại anchor inline trong paragraph/quote/bullet sau dịch.
-- WordPress automation qua Chrome/Brave/Edge CDP port riêng `9227`: dry-run kiểm tra tab WordPress và paste draft khi sẵn sàng.
-- Settings UI cho tài khoản, search, Article Import, 9Router/WordPress status và Tavily key theo quyền.
-- Ops Dashboard để kiểm tra Tavily key, LLM health/test, audit logs, system status, 9Router health.
-- Script đa nền tảng: Bash cho Linux/macOS/Git Bash, PowerShell cho Windows.
-- GitHub Actions CI chạy backend tests, frontend lint và frontend build.
+---
 
-## Kiến trúc nhanh
+## Overview
 
-```text
-User
-  -> Next.js frontend
-  -> FastAPI backend
+Web Agent Craw Blog is a production-oriented web application for research-assisted content operations. It combines a Tavily-first search assistant, SearXNG fallback retrieval, OpenAI-compatible LLM summarization, article URL import, structured content extraction, translation through 9Router, and WordPress draft automation through a browser CDP session.
 
-Search flow:
-  /api/v1/search/stream
-  -> Context Query Rewriter
-  -> Query Analyst / Planner
-  -> Tavily first + SearXNG fallback
-  -> Evidence Merge / Quality Gate
-  -> LLM Final Summary
-  -> SSE response
+| Component | Tech Stack | Current State |
+|---|---|---|
+| **Backend API** | FastAPI + Pydantic Settings + SQLAlchemy + Alembic | Implemented: search streaming, article import, LLM runtime config, auth/session stores, RBAC flags, audit/system endpoints |
+| **Frontend UI** | Next.js + React + TypeScript + Tailwind CSS | Implemented: chat-style search UI, settings, Article Import workflow, Ops Dashboard, session history, runtime status panels |
+| **Search Pipeline** | Tavily + SearXNG + HTTPX | Implemented: Tavily-first retrieval, SearXNG fallback, query expansion, evidence merge, confidence and quality gates |
+| **Article Pipeline** | BeautifulSoup + asset downloader + 9Router | Implemented: HTML block extraction, media/code/table/list/link preservation, batched translation, partial retry/resume behavior |
+| **Automation Layer** | Playwright/CDP + Chrome/Brave/Edge | Implemented: WordPress dry-run validation and draft paste automation through a dedicated browser debugging port |
+| **Infrastructure** | PostgreSQL + Docker Compose + local scripts | Implemented: cross-platform setup/run/stop scripts, optional Postgres/pgAdmin/SearXNG/9Router/browser startup, production compose profile |
 
-Article Import flow:
-  /api/v1/articles/import
-  -> Fetch URL
-  -> Extract blocks/assets
-  -> Download assets
-  -> Translate missing text blocks in small batches via 9Router
-  -> Build WordPress HTML draft
-  -> Dry-run or paste via browser CDP
+---
+
+## System Flow
+
+```mermaid
+flowchart TD
+    User[Browser Client] --> Frontend[Next.js Web UI]
+    Frontend -->|/api/v1 proxy| Backend[FastAPI Backend]
+
+    Backend -->|Auth, sessions, imports| Postgres[(PostgreSQL)]
+    Backend -->|Runtime config| Config[(Local config files)]
+
+    Frontend -->|Search stream| SearchAPI[/api/v1/search/stream/]
+    SearchAPI --> Rewriter[Context Query Rewriter]
+    Rewriter --> Planner[Query Analyst and Planner]
+    Planner --> Tavily[Tavily Search]
+    Planner --> SearXNG[SearXNG Fallback]
+    Tavily --> Evidence[Evidence Merge and Quality Gate]
+    SearXNG --> Evidence
+    Evidence --> LLM[OpenAI-compatible LLM]
+    LLM --> Frontend
+
+    Frontend -->|Article URL| ImportAPI[/api/v1/articles/import/]
+    ImportAPI --> Fetcher[Fetch HTML]
+    Fetcher --> Extractor[Extract text, media, code, tables, links]
+    Extractor --> Assets[Download article assets]
+    Extractor --> Router9[9Router Translation]
+    Router9 --> Draft[WordPress HTML Draft Builder]
+    Draft --> Storage[(Article import storage)]
+    Draft --> CDP[Browser CDP Port 9227]
+    CDP --> WordPress[WordPress Editor]
 ```
 
-Chi tiết xem [docs/architecture-pipeline.md](docs/architecture-pipeline.md).
+---
 
-## Tech stack
+## Quick Start
 
-- Backend: FastAPI, Pydantic Settings, HTTPX, SQLAlchemy, Alembic, psycopg, BeautifulSoup, Playwright/CDP.
-- Frontend: Next.js 16, React 19, Tailwind CSS 4.
-- Search providers: Tavily, SearXNG.
-- LLM: OpenAI-compatible API cho search summary; 9Router GPT 5.5 cho Article Import translation.
-- Local infra tùy chọn: PostgreSQL, pgAdmin, SearXNG Docker, 9Router, Brave/Chrome CDP.
-- CI/CD: GitHub Actions.
+All commands must be executed from the `web-agent/` repository root.
 
-## Cấu trúc thư mục
+### 1. Centralized Environment Configuration
 
-```text
-web-agent/
-  backend/                 FastAPI backend
-  frontend/                Next.js frontend
-  config/                  cấu hình local cho infra phụ trợ
-  docs/                    tài liệu vận hành/phát triển
-  plans/                   kế hoạch triển khai lịch sử
-  scripts/                 helper scripts như start_wp_chrome
-  .github/workflows/       GitHub Actions CI
-  setup.sh                 setup Linux/macOS/Git Bash
-  run.sh                   chạy app Linux/macOS/Git Bash
-  stop.sh                  dừng app Linux/macOS/Git Bash
-  delete.sh                xoá container/image Docker local
-  setup.ps1                setup Windows PowerShell
-  run.ps1                  chạy app Windows PowerShell
-  stop.ps1                 dừng app Windows PowerShell
-  delete.ps1               xoá container/image Docker local trên Windows
-```
-
-## Setup nhanh
-
-### Clone repo mới
-
-```bash
-git clone https://github.com/AnLHN/Web-agent-craw-blog.git
-cd Web-agent-craw-blog/web-agent
-```
-
-Nếu bạn đang dùng thư mục local có sẵn và muốn đổi remote sang repo mới:
-
-```bash
-git remote remove origin 2>/dev/null || true
-git remote add origin https://github.com/AnLHN/Web-agent-craw-blog.git
-git remote -v
-```
-
-PowerShell:
-
-```powershell
-git remote remove origin 2>$null
-git remote add origin https://github.com/AnLHN/Web-agent-craw-blog.git
-git remote -v
-```
-
-### Linux/macOS/Git Bash
+Create the root `.env` file from the committed example:
 
 ```bash
 cp .env.example .env
-./setup.sh
 ```
 
-### Windows PowerShell
+Windows PowerShell:
 
 ```powershell
 Copy-Item .env.example .env -Force
+```
+
+### 2. Setup Dependencies
+
+Run the cross-platform setup script for your host OS.
+
+Linux/macOS/Git Bash:
+
+```bash
+./setup.sh
+```
+
+Windows PowerShell:
+
+```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\setup.ps1
 ```
 
-## Chạy và dừng app
+### 3. Start Application
 
 Linux/macOS/Git Bash:
 
 ```bash
 ./run.sh
-./stop.sh
 ```
 
 Windows PowerShell:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run.ps1
+```
+
+### 4. Open Local Services
+
+| Service | URL |
+|---|---|
+| **Frontend** | `http://localhost:3005` |
+| **Backend API** | `http://127.0.0.1:8011` |
+| **API Docs** | `http://127.0.0.1:8011/docs` |
+| **9Router Dashboard** | `http://localhost:20128/dashboard` |
+| **WordPress Browser CDP** | `http://127.0.0.1:9227` |
+
+### 5. Stop Application
+
+Linux/macOS/Git Bash:
+
+```bash
+./stop.sh
+```
+
+Windows PowerShell:
+
+```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\stop.ps1
 ```
 
-URL mặc định:
+---
 
-- Frontend: `http://localhost:3005`
-- Backend: `http://127.0.0.1:8011`
-- API prefix: `/api/v1`
-- 9Router dashboard: `http://localhost:20128/dashboard`
-- WordPress browser CDP: `http://127.0.0.1:9227`
+## Manual Start (Local Development)
 
-## Article Import / Craw Blog
+Use this when running backend and frontend directly instead of the helper scripts.
 
-1. Chạy `setup` hoặc `run` để bật backend/frontend.
-2. Đảm bảo 9Router đang chạy và có model `cx/gpt-5.5`.
-3. Cấu hình `backend/.env`:
+### 1. Backend API
 
-```env
-APP_ARTICLE_LLM_PROVIDER=9router_openai
-APP_9ROUTER_BASE_URL=http://127.0.0.1:20128/v1
-APP_9ROUTER_API_KEY=YOUR_9ROUTER_KEY
-APP_ARTICLE_OPENAI_MODEL=cx/gpt-5.5
-APP_ARTICLE_TRANSLATION_MAX_OUTPUT_TOKENS=8000
-APP_ARTICLE_TRANSLATION_MAX_BATCHES_PER_RUN=6
-APP_ARTICLE_TRANSLATION_BATCH_SIZE=3
-APP_ARTICLE_TRANSLATION_MAX_BATCH_CHARS=8000
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+uvicorn src.web_search_backend.main:app --host 127.0.0.1 --port 8011 --reload
 ```
 
-4. Mở frontend, dùng Article Import để nhập URL bài viết.
-5. Bấm **Check 9router** để kiểm tra model/API key.
-6. Bấm import để crawl + dịch + build draft.
-7. Nếu translation bị `partial`, bấm **Translate** để dịch tiếp phần còn thiếu. Backend chỉ dịch block chưa có `translated_text`.
-8. Bấm **Dry Run** để kiểm tra kết nối WordPress tab. Dry Run không paste nội dung.
-9. Bấm **Paste Draft** để paste title/content vào WordPress editor.
-
-### WordPress browser automation
-
-Root `.env` hỗ trợ tự mở browser CDP khi setup:
-
-```env
-WP_CHROME_AUTO_START=true
-WP_CHROME_PORT=9227
-WP_CHROME_URL=https://your-site.com/wp-admin/post-new.php
-```
-
-Script sẽ ưu tiên Chrome/Brave/Edge. Trên Windows có thể chạy riêng:
+Windows PowerShell:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\start_wp_chrome.ps1 -Port 9227 -Url "https://your-site.com/wp-admin/post-new.php"
+cd backend
+python -m venv .venv
+.\.venv\Scripts\activate
+pip install -e ".[dev]"
+uvicorn src.web_search_backend.main:app --host 127.0.0.1 --port 8011 --reload
 ```
 
-## Cấu hình Tavily key
+### 2. Frontend UI
 
-Tavily là provider search chính. Thêm key qua UI:
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-1. Mở `http://localhost:3005`.
-2. Vào `Cài đặt`.
-3. Mở `Tavily Keys`.
-4. Dán key và lưu.
+### 3. Optional Infrastructure
 
-Key lưu local ở `backend/config/tavily_keys.json`. Không commit file này nếu chứa key thật.
+Enable optional local services in the root `.env` before setup:
 
-## Kiểm thử local
+```env
+POSTGRES_AUTO_START=true
+PGADMIN_AUTO_START=true
+SEARXNG_AUTO_START=true
+NINEROUTER_AUTO_START=true
+WP_CHROME_AUTO_START=true
+```
 
-Backend:
+Production-style Docker profile:
+
+```bash
+docker compose -f docker-compose.production.yml up -d --build
+```
+
+---
+
+## Application Pipelines
+
+### Search Assistant Pipeline
+
+| Step | Component | Action |
+|---:|---|---|
+| 1 | Browser UI | User sends a chat-style search question |
+| 2 | Backend API | Streams through `/api/v1/search/stream` |
+| 3 | Query Rewriter | Builds context-aware follow-up queries from session history |
+| 4 | Query Planner | Expands the query and selects retrieval strategy |
+| 5 | Tavily/SearXNG | Fetches web evidence through Tavily first and SearXNG fallback |
+| 6 | Evidence Merge | Deduplicates sources, scores quality, and prepares context |
+| 7 | LLM Summarizer | Calls an OpenAI-compatible model for the final answer |
+| 8 | Browser UI | Displays answer, sources, confidence, and session state |
+
+### Article Import / Craw Blog Pipeline
+
+| Step | Component | Action |
+|---:|---|---|
+| 1 | Article Import UI | User submits a source article URL |
+| 2 | Backend Importer | Fetches source HTML and extracts structured content blocks |
+| 3 | Asset Downloader | Downloads media and prepares local import assets |
+| 4 | Link Preserver | Replaces links with placeholders such as `[LINK_n:label]` before translation |
+| 5 | 9Router Client | Translates missing text blocks in bounded batches with retry/resume support |
+| 6 | Draft Builder | Restores links and generates WordPress-ready HTML |
+| 7 | CDP Automation | Runs dry-run validation or pastes title/content into WordPress editor |
+
+### Auth, Settings, and Ops Pipeline
+
+| Step | Component | Action |
+|---:|---|---|
+| 1 | Settings UI | Manages Tavily keys, LLM runtime config, account controls, and ops panels |
+| 2 | Backend Gateway | Applies auth/session storage and optional RBAC controls |
+| 3 | Config Store | Persists local runtime configuration files under backend config paths |
+| 4 | Ops Dashboard | Checks Tavily, LLM, 9Router, audit logs, and system status |
+| 5 | CI | Runs backend tests, frontend lint, and frontend build in GitHub Actions |
+
+---
+
+## Deployment Profiles
+
+| Profile | Cwd / Entry point | Description | Ports (Host) |
+|---|---|---|---|
+| **Frontend UI** | `frontend/` | Next.js application and browser-facing interface | `3005` |
+| **Backend API** | `backend/` | FastAPI gateway for search, article import, settings, auth, and ops | `8011` |
+| **PostgreSQL** | `docker-compose.production.yml` | Persistent auth/session/import database | `5432` |
+| **pgAdmin** | setup scripts | Optional PostgreSQL admin UI | `5050` |
+| **SearXNG** | setup scripts | Optional local fallback search provider | `8080` |
+| **9Router** | setup scripts | Optional OpenAI-compatible translation endpoint | `20128` |
+| **Browser CDP** | `scripts/start_wp_chrome.*` | Chrome/Brave/Edge debugging target for WordPress automation | `9227` |
+
+---
+
+## Repository Map
+
+```text
+.
+|-- backend/                         FastAPI backend service
+|   |-- alembic/                     Database migrations
+|   |-- config/                      Local runtime config files
+|   |-- scripts/                     Backend utility scripts
+|   |-- src/                         Application source package
+|   |-- tests/                       Backend test suite
+|   |-- Dockerfile                   Backend container image
+|   `-- pyproject.toml               Python package and test config
+|
+|-- frontend/                        Next.js dashboard and workflow UI
+|   |-- src/                         App routes, UI components, services, and styles
+|   |-- public/                      Static frontend assets
+|   |-- Dockerfile                   Frontend container image
+|   `-- package.json                 Node scripts and dependencies
+|
+|-- docs/                            Architecture, setup, CI/CD, and operations docs
+|-- plans/                           Historical implementation plans
+|-- scripts/                         Cross-service helper scripts
+|-- config/                          Local helper configuration
+|-- .github/workflows/               GitHub Actions CI
+|-- docker-compose.production.yml    Production-style Docker Compose profile
+|-- setup.sh / setup.ps1             Cross-platform setup entry points
+|-- run.sh / run.ps1                 Cross-platform run entry points
+|-- stop.sh / stop.ps1               Cross-platform stop entry points
+|-- delete.sh / delete.ps1           Local Docker cleanup helpers
+`-- .env.example                     Master environment template
+```
+
+---
+
+## Docs Index
+
+Detailed design and operations documents are maintained under `docs/`:
+
+| Document | Purpose |
+|---|---|
+| [**`docs/README.md`**](docs/README.md) | Documentation index |
+| [**`architecture-pipeline.md`**](docs/architecture-pipeline.md) | Search and Article Import architecture flow |
+| [**`setup-cross-platform.md`**](docs/setup-cross-platform.md) | Windows, Linux, macOS, and Git Bash setup instructions |
+| [**`env-reference.md`**](docs/env-reference.md) | Environment variable reference |
+| [**`ci-cd.md`**](docs/ci-cd.md) | CI/CD workflow and production notes |
+| [**`production-readiness-report.md`**](docs/production-readiness-report.md) | Production readiness checklist and gaps |
+| [**`task-web-search-implementation.md`**](docs/task-web-search-implementation.md) | Web search implementation task notes |
+| [**`blog-brief.md`**](docs/blog-brief.md) | Blog/content workflow brief |
+
+---
+
+## Configuration Reference
+
+Read runtime values from the root `.env` file and service-specific generated env files.
+
+| Setting | Default | Purpose |
+|---|---|---|
+| `BACKEND_PORT` | `8011` | Backend API host port |
+| `FRONTEND_PORT` | `3005` | Frontend dev or production host port |
+| `LLM_BASE_URL` | auto-detected or `http://127.0.0.1:8007/v1` | OpenAI-compatible summarization endpoint |
+| `LLM_MODEL` | `google/gemma-4-E4B-it` | Default model for search summary |
+| `SEARXNG_PORT` | `8080` | Optional local SearXNG fallback port |
+| `NINEROUTER_BASE_URL` | `http://127.0.0.1:20128/v1` | 9Router OpenAI-compatible API |
+| `NINEROUTER_DASHBOARD_URL` | `http://localhost:20128/dashboard` | 9Router dashboard URL |
+| `WP_CHROME_PORT` | `9227` | Browser CDP port for WordPress automation |
+| `POSTGRES_PORT` | `5432` | Optional local PostgreSQL port |
+| `PGADMIN_PORT` | `5050` | Optional pgAdmin UI port |
+
+---
+
+## Testing and CI
+
+Run backend tests:
 
 ```bash
 cd backend
-../.venv/Scripts/python.exe -m pytest -q
+python -m pytest -q
 ```
 
-Linux/macOS:
-
-```bash
-cd backend
-../.venv/bin/python -m pytest -q
-```
-
-Frontend:
+Run frontend checks:
 
 ```bash
 cd frontend
@@ -217,48 +336,15 @@ npm run lint
 npm run build
 ```
 
-## CI/CD
+GitHub Actions currently runs backend tests, frontend lint, and frontend build on `push`, `pull_request`, and `workflow_dispatch`.
 
-Workflow hiện tại nằm tại [.github/workflows/ci.yml](.github/workflows/ci.yml).
+---
 
-CI chạy khi `push`, `pull_request` hoặc `workflow_dispatch`:
+## Operations Notes
 
-- Backend job: Python 3.12, install `backend[dev]`, chạy `pytest`.
-- Frontend job: Node 24, `npm ci`, `npm run lint`, `npm run build`.
-
-Chuẩn trước khi mở PR:
-
-```bash
-cd backend && ../.venv/Scripts/python.exe -m pytest -q
-cd ../frontend && npm run lint && npm run build
-```
-
-Production/staging local dùng `docker-compose.production.yml`; CD cloud chưa bật vì chưa có target deploy chính thức. Khi có staging/production thật, thêm workflow deploy riêng với GitHub Environments, Secrets và approval production.
-Chi tiết xem [docs/ci-cd.md](docs/ci-cd.md).
-
-## Dọn Docker local
-
-```bash
-./delete.sh --keep-images
-```
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\delete.ps1 -KeepImages
-```
-
-## Tài liệu thêm
-
-- [docs/README.md](docs/README.md): mục lục tài liệu.
-- [docs/setup-cross-platform.md](docs/setup-cross-platform.md): setup đa nền tảng.
-- [docs/architecture-pipeline.md](docs/architecture-pipeline.md): kiến trúc và pipeline.
-- [docs/env-reference.md](docs/env-reference.md): biến môi trường.
-- [docs/ci-cd.md](docs/ci-cd.md): CI/CD.
-
-## Ghi chú bảo mật/vận hành
-
-- Không commit `.env`, `backend/.env`, `frontend/.env.local`, logs, API keys, browser profile hoặc dữ liệu import nhạy cảm.
-- Rotate key nếu key từng bị paste vào chat/log.
-- Không commit `backend/config/tavily_keys.json`, `backend/config/llm_runtime.json` nếu chứa endpoint/key nội bộ.
-- Nếu model chạy trên máy khác, backend phải truy cập được `LLM_BASE_URL` hoặc `APP_9ROUTER_BASE_URL`.
-- Nếu public SearXNG bị `403/429`, bật SearXNG local bằng Docker.
-- Sau khi sửa backend extractor/translation, restart backend và crawl lại URL mới; run cũ vẫn giữ dữ liệu đã extract trước đó.
+- **Search resilience**: Tavily is the primary provider. Local SearXNG can be enabled when public instances return `403` or `429`.
+- **Article translation resume**: Article Import only translates blocks that do not yet have `translated_text`, so partial runs can be continued.
+- **Link preservation**: Inline links are protected through placeholders before translation and restored when rendering the final draft.
+- **WordPress safety**: Dry Run checks the browser/CDP target before content is pasted into the editor.
+- **Secret hygiene**: Do not commit `.env`, `backend/.env`, `frontend/.env.local`, API keys, logs, browser profiles, or imported private content.
+- **Local config hygiene**: Do not commit `backend/config/tavily_keys.json` or `backend/config/llm_runtime.json` if they contain private endpoints or keys.
